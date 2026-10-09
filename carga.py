@@ -83,6 +83,36 @@ def _aplanar_variaciones(variaciones):
     }
 
 
+def _a_numero(texto):
+    try:
+        return float(str(texto).replace(".", "").replace(",", "."))
+    except ValueError:
+        return np.nan
+
+
+def _aplanar_atributos(atributos):
+    """Extrae los valores de la ficha técnica que hablan de la condición del item.
+
+    Solo existen en vehículos, inmuebles y repuestos. Se buscan por nombre porque
+    los ids cambian entre categorías.
+    """
+    valores = {a.get("name"): (a.get("value_name") or "").strip() for a in atributos}
+    unico_duenio = valores.get("Único dueño")
+    return {
+        "n_attributes": len(atributos),
+        "attr_ids": "|".join(sorted({a.get("id", "") for a in atributos})),
+        "attr_kilometros": _a_numero(valores["Kilómetros"]) if "Kilómetros" in valores else np.nan,
+        "attr_anio": _a_numero(valores["Año"]) if "Año" in valores else np.nan,
+        # Inmuebles: "A estrenar", "Hasta 5 años", ..., "Más de 40 años"
+        "attr_antiguedad": valores.get("Antigüedad") or None,
+        # Inmuebles: "Excelente", "Muy bueno", "Bueno", "A refaccionar"
+        "attr_estado": valores.get("Estado del inmueble") or valores.get("Estado") or None,
+        "attr_unico_duenio": {"Sí": True, "No": False}.get(unico_duenio),
+        # Repuestos con número de pieza del fabricante
+        "attr_numero_pieza": "Número pieza" in valores or "Número de pieza" in valores,
+    }
+
+
 def aplanar_item(r):
     """Convierte un item crudo (dict) en un dict plano de una sola fila."""
     fila = {
@@ -112,10 +142,7 @@ def aplanar_item(r):
     fila["n_deal_ids"] = len(r.get("deal_ids") or [])
     fila["n_descriptions"] = len(r.get("descriptions") or [])
 
-    atributos = r.get("attributes") or []
-    fila["n_attributes"] = len(atributos)
-    fila["attr_ids"] = "|".join(sorted({a.get("id", "") for a in atributos}))
-
+    fila.update(_aplanar_atributos(r.get("attributes") or []))
     fila.update(_aplanar_fotos(r.get("pictures") or []))
     fila.update(_aplanar_variaciones(r.get("variations") or []))
     return fila
