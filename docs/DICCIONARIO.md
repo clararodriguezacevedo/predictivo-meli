@@ -183,6 +183,20 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `var_available_quantity` | aplanado | numérica | 0.0% | 175 | 0 / 0 / 9999 | Suma de unidades disponibles entre todas las variaciones. |
 | `var_n_precios_distintos` | aplanado | numérica | 0.0% | 2 | `0`, `1` | Cantidad de precios distintos entre las variaciones. En los datos siempre es 0 o 1 (todas las variaciones de un item tienen el mismo precio), así que es redundante con `n_variations > 0`. |
 
+## Ficha técnica (vehículos, inmuebles y repuestos)
+
+| Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
+|---|---|---|---|---|---|---|
+| `attr_kilometros` | aplanado | numérica | 98.8% | 378 | 0 / 6.5e+04 / 1.111e+09 | Kilómetros declarados en la ficha de un vehículo. Un 0 indica un vehículo 0 km. |
+| `attr_anio` | aplanado | numérica | 98.7% | 53 | 1900 / 2010 / 2015 | Año de fabricación declarado en la ficha de un vehículo. |
+| `attr_antiguedad` | aplanado | texto | 99.3% | 12 | `A estrenar`, `Hasta 5 años`, `Hasta 20 años` | Antigüedad de un inmueble, en rangos ("A estrenar", "Hasta 5 años", ..., "Más de 40 años"). |
+| `attr_estado` | aplanado | texto | 99.5% | 11 | `Excelente`, `Muy bueno`, `Bueno` | Estado declarado del inmueble o bien ("Excelente", "Muy bueno", "Bueno", "A refaccionar"). Algunas categorías usan códigos numéricos (0 a 6), todos de items nuevos. |
+| `attr_unico_duenio` | aplanado | texto | 99.3% | 2 | `True`, `False` | Si el vehículo tuvo un único dueño (True / False). Nulo si no se informa. |
+| `attr_numero_pieza` | aplanado | bool | 0.0% | 2 | `False`, `True` | La ficha incluye el número de pieza del fabricante. Típico de repuestos nuevos de comercios. |
+| `attr_es_0km` | feature | bool | 0.0% | 2 | `False`, `True` | `attr_kilometros == 0`. |
+| `attr_anios_de_uso` | feature | numérica | 98.7% | 53 | 0 / 5 / 115 | `2015 - attr_anio`: años de uso del vehículo al momento de publicar. |
+| `attr_a_estrenar` | feature | bool | 0.0% | 2 | `False`, `True` | `attr_antiguedad == "A estrenar"`. |
+
 ## Features derivadas del item
 
 | Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
@@ -205,6 +219,25 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `tiene_video` | feature | bool | 0.0% | 2 | `False`, `True` | `video_id` no es nulo. |
 | `es_tienda_oficial` | feature | bool | 0.0% | 2 | `False`, `True` | `official_store_id` no es nulo. |
 | `tiene_parent` | feature | bool | 0.0% | 2 | `True`, `False` | `parent_item_id` no es nulo: el item es una republicación. |
+
+## Palabras clave en título y garantía
+
+| Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
+|---|---|---|---|---|---|---|
+| `t_nuevo` | feature | bool | 0.0% | 2 | `False`, `True` | El título dice "nuevo/a/os/as", excluyendo "como nuevo", "igual a nuevo" y "casi nuevo". |
+| `t_usado` | feature | bool | 0.0% | 2 | `False`, `True` | El título dice "usado/a" o "segunda mano". |
+| `t_estado_de_uso` | feature | bool | 0.0% | 2 | `False`, `True` | El título describe el estado de algo ya usado: "como nuevo", "igual a nuevo", "poco uso", "impecable", "estado". |
+| `t_0km_a_estrenar` | feature | bool | 0.0% | 2 | `False`, `True` | El título dice "0 km" o "a estrenar". |
+| `t_sellado_en_caja` | feature | bool | 0.0% | 2 | `False`, `True` | El título dice "sellado", "blister" o "en caja". |
+| `t_mayorista` | feature | bool | 0.0% | 2 | `False`, `True` | El título habla de venta por mayor o por cantidad ("por mayor", "x 10 unidades"). |
+| `t_antiguo_coleccion` | feature | bool | 0.0% | 2 | `False`, `True` | El título dice "antiguo", "vintage", "retro", "colección" o "de época". |
+| `t_original` | feature | bool | 0.0% | 2 | `False`, `True` | El título dice "original". |
+| `t_anio` | feature | bool | 0.0% | 2 | `False`, `True` | El título menciona un año entre 1950 y 2015 (ediciones de discos y revistas, modelos de autos). |
+| `w_fabrica` | feature | bool | 0.0% | 2 | `False`, `True` | La garantía menciona fábrica, fabricante, oficial o importador. |
+| `w_plazo` | feature | bool | 0.0% | 2 | `False`, `True` | La garantía indica un plazo ("6 meses", "1 año", "30 días"). |
+| `w_sin_garantia` | feature | bool | 0.0% | 2 | `False`, `True` | La garantía dice explícitamente que no hay ("sin garantía", "no tiene"). |
+| `w_solo_si` | feature | bool | 0.0% | 2 | `False`, `True` | La garantía es solo "Sí", sin más detalle. |
+| `w_vendedor_o_estado` | feature | bool | 0.0% | 2 | `False`, `True` | La garantía habla del vendedor, su reputación o el estado del producto ("funciona perfecto", "probado"). El vendedor responde por su palabra, no un fabricante. |
 
 ## Perfil del vendedor
 

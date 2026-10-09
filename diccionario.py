@@ -38,7 +38,9 @@ GRUPOS = [
     "Envío",
     "Medios de pago",
     "Contenido de la publicación",
+    "Ficha técnica (vehículos, inmuebles y repuestos)",
     "Features derivadas del item",
+    "Palabras clave en título y garantía",
     "Perfil del vendedor",
     "Perfil de la categoría",
     "Campos descartados",
@@ -311,6 +313,66 @@ VARIABLES = [
              "`official_store_id` no es nulo."),
     Variable("tiene_parent", "Features derivadas del item", DERIVADA,
              "`parent_item_id` no es nulo: el item es una republicación."),
+
+    # Ficha técnica
+    Variable("attr_kilometros", "Ficha técnica (vehículos, inmuebles y repuestos)", APLANADA,
+             "Kilómetros declarados en la ficha de un vehículo. Un 0 indica un vehículo 0 km."),
+    Variable("attr_anio", "Ficha técnica (vehículos, inmuebles y repuestos)", APLANADA,
+             "Año de fabricación declarado en la ficha de un vehículo."),
+    Variable("attr_antiguedad", "Ficha técnica (vehículos, inmuebles y repuestos)", APLANADA,
+             "Antigüedad de un inmueble, en rangos (\"A estrenar\", \"Hasta 5 años\", ..., "
+             "\"Más de 40 años\")."),
+    Variable("attr_estado", "Ficha técnica (vehículos, inmuebles y repuestos)", APLANADA,
+             "Estado declarado del inmueble o bien (\"Excelente\", \"Muy bueno\", \"Bueno\", "
+             "\"A refaccionar\"). Algunas categorías usan códigos numéricos (0 a 6), todos de "
+             "items nuevos."),
+    Variable("attr_unico_duenio", "Ficha técnica (vehículos, inmuebles y repuestos)", APLANADA,
+             "Si el vehículo tuvo un único dueño (True / False). Nulo si no se informa."),
+    Variable("attr_numero_pieza", "Ficha técnica (vehículos, inmuebles y repuestos)", APLANADA,
+             "La ficha incluye el número de pieza del fabricante. Típico de repuestos "
+             "nuevos de comercios."),
+    Variable("attr_es_0km", "Ficha técnica (vehículos, inmuebles y repuestos)", DERIVADA,
+             "`attr_kilometros == 0`."),
+    Variable("attr_anios_de_uso", "Ficha técnica (vehículos, inmuebles y repuestos)", DERIVADA,
+             "`2015 - attr_anio`: años de uso del vehículo al momento de publicar."),
+    Variable("attr_a_estrenar", "Ficha técnica (vehículos, inmuebles y repuestos)", DERIVADA,
+             "`attr_antiguedad == \"A estrenar\"`."),
+
+    # Palabras clave (patrones en features.PATRONES_TITULO y PATRONES_GARANTIA)
+    Variable("t_nuevo", "Palabras clave en título y garantía", DERIVADA,
+             "El título dice \"nuevo/a/os/as\", excluyendo \"como nuevo\", \"igual a nuevo\" "
+             "y \"casi nuevo\"."),
+    Variable("t_usado", "Palabras clave en título y garantía", DERIVADA,
+             "El título dice \"usado/a\" o \"segunda mano\"."),
+    Variable("t_estado_de_uso", "Palabras clave en título y garantía", DERIVADA,
+             "El título describe el estado de algo ya usado: \"como nuevo\", \"igual a nuevo\", "
+             "\"poco uso\", \"impecable\", \"estado\"."),
+    Variable("t_0km_a_estrenar", "Palabras clave en título y garantía", DERIVADA,
+             "El título dice \"0 km\" o \"a estrenar\"."),
+    Variable("t_sellado_en_caja", "Palabras clave en título y garantía", DERIVADA,
+             "El título dice \"sellado\", \"blister\" o \"en caja\"."),
+    Variable("t_mayorista", "Palabras clave en título y garantía", DERIVADA,
+             "El título habla de venta por mayor o por cantidad (\"por mayor\", \"x 10 "
+             "unidades\")."),
+    Variable("t_antiguo_coleccion", "Palabras clave en título y garantía", DERIVADA,
+             "El título dice \"antiguo\", \"vintage\", \"retro\", \"colección\" o \"de época\"."),
+    Variable("t_original", "Palabras clave en título y garantía", DERIVADA,
+             "El título dice \"original\"."),
+    Variable("t_anio", "Palabras clave en título y garantía", DERIVADA,
+             "El título menciona un año entre 1950 y 2015 (ediciones de discos y revistas, "
+             "modelos de autos)."),
+    Variable("w_fabrica", "Palabras clave en título y garantía", DERIVADA,
+             "La garantía menciona fábrica, fabricante, oficial o importador."),
+    Variable("w_plazo", "Palabras clave en título y garantía", DERIVADA,
+             "La garantía indica un plazo (\"6 meses\", \"1 año\", \"30 días\")."),
+    Variable("w_sin_garantia", "Palabras clave en título y garantía", DERIVADA,
+             "La garantía dice explícitamente que no hay (\"sin garantía\", \"no tiene\")."),
+    Variable("w_solo_si", "Palabras clave en título y garantía", DERIVADA,
+             "La garantía es solo \"Sí\", sin más detalle."),
+    Variable("w_vendedor_o_estado", "Palabras clave en título y garantía", DERIVADA,
+             "La garantía habla del vendedor, su reputación o el estado del producto "
+             "(\"funciona perfecto\", \"probado\"). El vendedor responde por su palabra, no un "
+             "fabricante."),
 
     # Perfil del vendedor
     Variable("seller_n_items", "Perfil del vendedor", DERIVADA,
