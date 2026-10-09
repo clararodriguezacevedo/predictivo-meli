@@ -6,10 +6,67 @@ calculan justamente así, para que los vendedores que solo aparecen en test tamb
 tengan perfil.
 """
 
+import unicodedata
+
 import numpy as np
 import pandas as pd
 
 import config
+
+# Año de referencia del dataset (casi todo se publicó en 2015)
+ANIO_DATOS = 2015
+
+# Patrones sobre el título normalizado (minúsculas, sin tildes). "como nuevo",
+# "igual a nuevo" y "casi nuevo" se separan de "nuevo" porque significan lo contrario.
+PATRONES_TITULO = {
+    "t_nuevo": r"(?<!como )(?<!igual a )(?<!casi )\bnuev[oa]s?\b",
+    "t_usado": r"\busad[oa]s?\b|segunda mano",
+    "t_estado_de_uso": r"(?:como|igual a|casi) nuev|poco uso|impecable|\bestado\b",
+    "t_0km_a_estrenar": r"\b0 ?km\b|estrenar",
+    "t_sellado_en_caja": r"sellad|blister|en (?:su )?caja",
+    "t_mayorista": r"por mayor|x mayor|mayorista|\bx ?\d+ ?(?:u|un|unid|unidades)\b",
+    "t_antiguo_coleccion": r"antig|vintage|retro|coleccion|de epoca",
+    "t_original": r"\boriginal",
+    "t_anio": r"\b(?:19[5-9]\d|200\d|201[0-5])\b",
+}
+
+# Patrones sobre el texto de garantía normalizado
+PATRONES_GARANTIA = {
+    "w_fabrica": r"fabric|oficial|importador",
+    "w_plazo": r"\d+\s*(?:mes|ano|dia)",
+    "w_sin_garantia": r"sin garant|no tiene|no posee|no ofrece|^no\b",
+    "w_solo_si": r"^\s*si\s*\.?\s*$",
+    "w_vendedor_o_estado": r"vendedor|reputac|calificac|estado|funciona|probad",
+}
+
+
+def normalizar_texto(serie):
+    """Minúsculas y sin tildes, para que los patrones no dependan de la escritura."""
+    def _normalizar(texto):
+        sin_tildes = unicodedata.normalize("NFKD", texto.lower())
+        return sin_tildes.encode("ascii", "ignore").decode()
+    return serie.fillna("").map(_normalizar)
+
+
+def agregar_features_texto(df):
+    """Banderas por palabras clave en título y garantía."""
+    df = df.copy()
+    titulo = normalizar_texto(df["title"])
+    for nombre, patron in PATRONES_TITULO.items():
+        df[nombre] = titulo.str.contains(patron, regex=True)
+    garantia = normalizar_texto(df["warranty"])
+    for nombre, patron in PATRONES_GARANTIA.items():
+        df[nombre] = garantia.str.contains(patron, regex=True)
+    return df
+
+
+def agregar_features_atributos(df):
+    """Features de la ficha técnica de vehículos e inmuebles."""
+    df = df.copy()
+    df["attr_es_0km"] = df["attr_kilometros"] == 0
+    df["attr_anios_de_uso"] = ANIO_DATOS - df["attr_anio"]
+    df["attr_a_estrenar"] = df["attr_antiguedad"] == "A estrenar"
+    return df
 
 
 def agregar_features_item(df):
@@ -91,4 +148,6 @@ def agregar_perfiles(train, test):
 
 def construir(train, test):
     """Pipeline completo de features para train y test."""
-    return agregar_perfiles(agregar_features_item(train), agregar_features_item(test))
+    def _por_item(df):
+        return agregar_features_atributos(agregar_features_texto(agregar_features_item(df)))
+    return agregar_perfiles(_por_item(train), _por_item(test))
