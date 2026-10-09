@@ -6,6 +6,7 @@ from collections import Counter
 import matplotlib.pyplot as plt
 import pandas as pd
 
+import features
 from carga import MEDIOS_DE_PAGO
 from eda import graficos as gr
 
@@ -222,4 +223,62 @@ El texto es muy informativo y complementa a las variables estructuradas:
 
 Esto sugiere sumar TF-IDF de título y garantía (o un modelo lineal sobre texto cuya
 predicción out-of-fold entre como feature al modelo de árboles).
+""")
+
+
+BANDERAS_SEMANTICAS = [
+    *features.PATRONES_TITULO, *features.PATRONES_GARANTIA,
+    "attr_es_0km", "attr_a_estrenar", "attr_numero_pieza",
+]
+
+
+def senales_semanticas(ctx):
+    tr, rep = ctx.train, ctx.reporte
+    rep.seccion("10. Señales semánticas: palabras clave y ficha técnica")
+    tabla = pd.DataFrame({
+        b: {
+            "n": int(tr[b].sum()),
+            "usados_si_true": tr.loc[tr[b], "y"].mean(),
+            "usados_si_false": tr.loc[~tr[b], "y"].mean(),
+        }
+        for b in BANDERAS_SEMANTICAS
+    }).T.sort_values("usados_si_true")
+
+    fig, ejes = plt.subplots(1, 2, figsize=(15, 6), gridspec_kw={"width_ratios": [2, 1]})
+    colores = [gr.COLOR_USADO if t > ctx.tasa_global else gr.COLOR_NUEVO
+               for t in tabla["usados_si_true"]]
+    ejes[0].barh(tabla.index, tabla["usados_si_true"], color=colores)
+    for i, (tasa, n) in enumerate(zip(tabla["usados_si_true"], tabla["n"])):
+        ejes[0].text(tasa + 0.01, i, f"n={int(n):,}", va="center", fontsize=8)
+    ejes[0].axvline(ctx.tasa_global, color=gr.COLOR_NEUTRO, ls="--")
+    ejes[0].set(xlim=(0, 1), xlabel="tasa de usados cuando la bandera es True",
+                title="Banderas de título (t_), garantía (w_) y ficha técnica (attr_)")
+    autos = tr[tr["attr_anios_de_uso"].notna()]
+    autos = autos.assign(anios_de_uso=pd.cut(autos["attr_anios_de_uso"], [-2, 0, 1, 2, 5, 100],
+                                             labels=["0", "1", "2", "3 a 5", "más de 5"]))
+    gr.tasa_por_categoria(autos, "anios_de_uso", ejes[1], min_n=10,
+                          titulo="Vehículos: años de uso según la ficha")
+    rep.figura(fig, "senales_semanticas")
+    rep.tabla(tabla)
+
+    rep.texto("""
+Banderas simples sobre el texto y la ficha técnica capturan buena parte de lo que
+"dice" la publicación. Algunas son casi deterministas aunque cubren pocos items:
+
+- **Título**: "usado" y las descripciones de estado ("como nuevo", "impecable",
+  "poco uso") son ~97% usados. Hay que separar "como nuevo" de "nuevo": el primero
+  describe algo usado, el segundo baja la tasa a ~12%. La venta mayorista ("x 10
+  unidades", "por mayor") es casi siempre de nuevos. "Antiguo", "colección" o un año
+  en el título apuntan a objetos usados (discos, revistas, antigüedades).
+- **Garantía**: lo que importa es *quién* garantiza. Si la garantía es de fábrica,
+  oficial o del importador, el item es nuevo (~1% usados). Si tiene un plazo
+  concreto, también (~7%). Si el vendedor habla de su reputación o de que el
+  producto funciona, es usado (~65%). Un "Sí" a secas no informa nada.
+- **Ficha técnica**: en vehículos, los del año son mayormente nuevos (~12% usados),
+  con un año de uso quedan en la mitad y desde 2 años de uso son ~99% usados. En inmuebles, "A estrenar" baja la tasa al
+  ~21%. El número de pieza identifica repuestos nuevos (~3%).
+
+Como cada bandera cubre pocos items, el aporte al accuracy global va a ser menor que
+el de las variables de stock o vendedor, pero resuelven casos donde esas variables
+dudan (por ejemplo un particular que vende algo nuevo en caja).
 """)

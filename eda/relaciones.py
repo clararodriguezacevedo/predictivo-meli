@@ -24,7 +24,8 @@ BOOLEANAS = [
     "iq_es_1", "vendio_algo", "automatic_relist", "accepts_mercadopago",
     "ship_free_shipping", "ship_local_pick_up", "price_con_decimales",
     "price_termina_en_9", "price_multiplo_100", "tiene_warranty", "tiene_video",
-    "es_tienda_oficial",
+    "es_tienda_oficial", "t_nuevo", "t_usado", "t_estado_de_uso", "t_antiguo_coleccion",
+    "w_fabrica", "w_plazo", "w_vendedor_o_estado",
 ]
 
 
@@ -52,7 +53,7 @@ def _pureza(df, clave, min_items=2):
 
 def vendedores(ctx):
     tr, te, rep = ctx.train, ctx.test, ctx.reporte
-    rep.seccion("10. Vendedores: la relación oculta más fuerte")
+    rep.seccion("11. Vendedores: la relación oculta más fuerte")
     pureza, g = _pureza(tr, "seller_id")
     acc_loo, cobertura = accuracy_leave_one_out(tr, "seller_id")
 
@@ -107,7 +108,7 @@ de items con stock 1 y la fracción de precios con centavos.
 
 def categorias(ctx):
     tr, te, rep = ctx.train, ctx.test, ctx.reporte
-    rep.seccion("11. Categorías")
+    rep.seccion("12. Categorías")
     pureza, _ = _pureza(tr, "category_id", min_items=20)
     acc_loo, cobertura = accuracy_leave_one_out(tr, "category_id")
     top = (tr.groupby("category_id")["y"].agg(tasa_usados="mean", n="size")
@@ -130,7 +131,7 @@ tienen categoría vista en train. Categorías más grandes:
 
 def ranking_global(ctx):
     tr, rep = ctx.train, ctx.reporte
-    rep.seccion("12. Ranking de variables y correlaciones")
+    rep.seccion("13. Ranking de variables y correlaciones")
     X = tr[NUMERICAS + BOOLEANAS].astype(float).fillna(-1)
 
     mi = mutual_info_classif(X, tr["y"], random_state=config.SEED)

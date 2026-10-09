@@ -22,6 +22,7 @@ SECCIONES = [
     variables.precio,
     variables.temporal,
     variables.texto,
+    variables.senales_semanticas,
     relaciones.vendedores,
     relaciones.categorias,
     relaciones.ranking_global,
