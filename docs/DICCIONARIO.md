@@ -213,6 +213,8 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `hora_creacion` | feature | numérica | 0.0% | 24 | 0 / 14 / 23 | Hora de creación en horario argentino (UTC-3). |
 | `dia_semana` | feature | numérica | 0.0% | 7 | `1`, `0`, `2` | Día de la semana de creación en horario argentino (0 = lunes). |
 | `title_len` | feature | numérica | 0.0% | 94 | 1 / 48 / 100 | Largo del título en caracteres. |
+| `title_n_digitos` | feature | numérica | 0.0% | 37 | 0 / 0 / 42 | Cantidad de dígitos en el título. Los comercios incluyen modelos, medidas y códigos. |
+| `titulo_repetido` | feature | numérica | 0.0% | 18 | 1 / 1 / 78 | Cantidad de publicaciones (train + test) con exactamente el mismo título normalizado, contando la propia. |
 | `title_frac_mayus` | feature | numérica | 0.0% | 327 | 0 / 0.1404 / 0.4286 | Fracción de letras mayúsculas en el título. |
 | `warranty_len` | feature | numérica | 0.0% | 258 | 0 / 0 / 266 | Largo del texto de garantía (0 si es nulo). |
 | `tiene_warranty` | feature | bool | 0.0% | 2 | `False`, `True` | `warranty` no es nulo. |
@@ -245,23 +247,79 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 |---|---|---|---|---|---|---|
 | `seller_n_items` | feature | numérica | 0.0% | 136 | 1 / 6 / 933 | Cantidad de items del vendedor en train + test. |
 | `seller_frac_free` | feature | numérica | 0.0% | 254 | 0 / 0 / 1 | Fracción de las publicaciones del vendedor que son `free`. Mayor a 0 indica un vendedor que califica para publicar gratis, o sea un particular. |
+| `seller_frac_bronze` | feature | numérica | 0.0% | 290 | 0 / 0.943 / 1 | Fracción de las publicaciones del vendedor que son `bronze`. |
 | `seller_frac_iq_1` | feature | numérica | 0.0% | 245 | 0 / 1 / 1 | Fracción de las publicaciones del vendedor con stock inicial 1. |
 | `seller_frac_vendio` | feature | numérica | 0.0% | 307 | 0 / 0.001072 / 1 | Fracción de las publicaciones del vendedor con al menos una venta. |
 | `seller_frac_warranty` | feature | numérica | 0.0% | 316 | 0 / 0.07692 / 1 | Fracción de las publicaciones del vendedor con garantía cargada. |
-| `seller_frac_price_decimales` | feature | numérica | 0.0% | 218 | 0 / 0 / 1 | Fracción de las publicaciones del vendedor con precios con centavos. |
+| `seller_frac_price_decimales` | feature | numérica | 0.0% | 218 | 0 / 0 / 1 | Fracción de las publicaciones del vendedor con precio con centavos. |
+| `seller_frac_repuso_stock` | feature | numérica | 0.0% | 302 | 0 / 0 / 1 | Fracción de las publicaciones del vendedor donde se repuso stock (`stock_desbalance > 0`). |
+| `seller_frac_foto_cuadrada` | feature | numérica | 0.0% | 265 | 0 / 0 / 1 | Fracción de las publicaciones del vendedor con alguna foto cuadrada. |
+| `seller_frac_pago_tarjeta` | feature | numérica | 0.0% | 283 | 0 / 0 / 1 | Fracción de las publicaciones del vendedor que aceptan tarjeta de crédito por fuera de MercadoPago. |
+| `seller_frac_t_nuevo` | feature | numérica | 0.0% | 197 | 0 / 0 / 1 | Fracción de las publicaciones del vendedor cuyo título dice "nuevo". |
+| `seller_frac_t_estado_de_uso` | feature | numérica | 0.0% | 114 | 0 / 0 / 1 | Fracción de las publicaciones del vendedor cuyo título describe un estado de uso ("como nuevo", "impecable"). |
+| `seller_frac_t_antiguo_coleccion` | feature | numérica | 0.0% | 193 | 0 / 0 / 1 | Fracción de las publicaciones del vendedor cuyo título dice "antiguo", "vintage" o "colección". |
+| `seller_frac_w_plazo` | feature | numérica | 0.0% | 136 | 0 / 0 / 1 | Fracción de las publicaciones del vendedor cuya garantía indica un plazo. |
 | `seller_mediana_log_price` | feature | numérica | 0.0% | 7,671 | 0.6931 / 5.421 / 21.52 | Mediana del `log_price` de las publicaciones del vendedor. |
 | `seller_n_categorias` | feature | numérica | 0.0% | 63 | 1 / 4 / 100 | Cantidad de categorías distintas en las que publica el vendedor. |
 | `seller_ratio_categorias` | feature | numérica | 0.0% | 446 | 0.0059 / 0.8 / 1 | `seller_n_categorias / seller_n_items`. Cerca de 1 es un vendedor que publica cosas variadas (alguien vaciando la casa); cerca de 0, un especialista. |
+| `seller_std_log_price` | feature | numérica | 25.0% | 9,745 | 0 / 0.6624 / 7.173 | Desvío estándar del `log_price` entre las publicaciones del vendedor. Nulo si tiene un solo item. |
+| `seller_max_initial_quantity` | feature | numérica | 0.0% | 341 | 1 / 1 / 9999 | Mayor stock inicial entre todas las publicaciones del vendedor. Si nunca publicó más de 2 unidades de algo, casi seguro es un particular. |
+| `seller_media_n_pictures` | feature | numérica | 0.0% | 859 | 0 / 2.54 / 36 | Promedio de fotos por publicación del vendedor. |
+| `seller_n_garantias_distintas` | feature | numérica | 0.0% | 24 | 0 / 1 / 61 | Cantidad de textos de garantía distintos que usa el vendedor. |
+| `seller_dias_activos` | feature | numérica | 0.0% | 47 | 1 / 4 / 58 | Cantidad de días distintos en los que el vendedor creó publicaciones. |
+| `seller_span_dias` | feature | numérica | 0.0% | 140 | 0 / 35 / 861 | Días entre la primera y la última publicación del vendedor en el dataset. |
+| `seller_items_mismo_dia` | feature | numérica | 0.0% | 73 | 1 / 1 / 153 | Publicaciones que el vendedor creó el mismo día que este item (incluyéndolo). |
+| `seller_items_mismo_minuto` | feature | numérica | 0.0% | 24 | 1 / 1 / 30 | Publicaciones que el vendedor creó en el mismo minuto que este item. Valores altos indican carga masiva con una herramienta, típica de comercios. |
+| `seller_seg_desde_previo` | feature | numérica | 35.9% | 36,397 | 0 / 2.433e+04 / 7.339e+07 | Segundos desde la publicación anterior del mismo vendedor. Nulo en su primera publicación. |
 
 ## Perfil de la categoría
 
 | Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
 |---|---|---|---|---|---|---|
 | `cat_n_items` | feature | numérica | 0.0% | 191 | 1 / 33 / 4593 | Cantidad de items de la categoría en train + test. |
-| `cat_frac_free` | feature | numérica | 0.0% | 474 | 0 / 0.1818 / 1 | Fracción de publicaciones `free` en la categoría. |
-| `cat_frac_iq_1` | feature | numérica | 0.0% | 531 | 0 / 0.75 / 1 | Fracción de publicaciones con stock inicial 1 en la categoría. |
+| `cat_frac_free` | feature | numérica | 0.0% | 474 | 0 / 0.1818 / 1 | Fracción de las publicaciones de la categoría que son `free`. |
+| `cat_frac_iq_1` | feature | numérica | 0.0% | 531 | 0 / 0.75 / 1 | Fracción de las publicaciones de la categoría con stock inicial 1. |
+| `cat_frac_vendio` | feature | numérica | 0.0% | 445 | 0 / 0.08696 / 1 | Fracción de las publicaciones de la categoría con al menos una venta. |
+| `cat_frac_warranty` | feature | numérica | 0.0% | 552 | 0 / 0.3883 / 1 | Fracción de las publicaciones de la categoría con garantía cargada. |
+| `cat_frac_price_decimales` | feature | numérica | 0.0% | 440 | 0 / 0.08046 / 1 | Fracción de las publicaciones de la categoría con precio con centavos. |
+| `cat_frac_repuso_stock` | feature | numérica | 0.0% | 432 | 0 / 0.075 / 1 | Fracción de las publicaciones de la categoría donde se repuso stock (`stock_desbalance > 0`). |
+| `cat_frac_foto_cuadrada` | feature | numérica | 0.0% | 470 | 0 / 0.08126 / 1 | Fracción de las publicaciones de la categoría con alguna foto cuadrada. |
+| `cat_frac_t_nuevo` | feature | numérica | 0.0% | 261 | 0 / 0.008403 / 1 | Fracción de las publicaciones de la categoría cuyo título dice "nuevo". |
+| `cat_frac_t_estado_de_uso` | feature | numérica | 0.0% | 225 | 0 / 0 / 1 | Fracción de las publicaciones de la categoría cuyo título describe un estado de uso ("como nuevo", "impecable"). |
+| `cat_frac_t_antiguo_coleccion` | feature | numérica | 0.0% | 285 | 0 / 0 / 1 | Fracción de las publicaciones de la categoría cuyo título dice "antiguo", "vintage" o "colección". |
+| `cat_frac_w_plazo` | feature | numérica | 0.0% | 354 | 0 / 0.006006 / 1 | Fracción de las publicaciones de la categoría cuya garantía indica un plazo. |
+| `cat_n_sellers` | feature | numérica | 0.0% | 137 | 1 / 23 / 719 | Cantidad de vendedores distintos en la categoría. |
+| `cat_ratio_sellers` | feature | numérica | 0.0% | 512 | 0.01562 / 0.7742 / 1 | `cat_n_sellers / cat_n_items`. Cerca de 1 es una categoría donde cada vendedor publica un solo item; cerca de 0, una dominada por pocos vendedores. |
 | `cat_mediana_log_price` | feature | numérica | 0.0% | 5,093 | 0.6931 / 5.419 / 16.22 | Mediana del `log_price` de la categoría. |
 | `log_price_rel_categoria` | feature | numérica | 0.0% | 51,687 | -11.38 / 0 / 16.65 | `log_price - cat_mediana_log_price`: qué tan caro es el item respecto de su categoría (0 = precio típico). |
+
+## Perfil por palabra del título
+
+| Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
+|---|---|---|---|---|---|---|
+| `pal_frac_free_media` | feature | numérica | 0.3% | 96,423 | 0 / 0.197 / 0.8 | Para cada palabra del título se calcula la fracción de las *otras* publicaciones que la contienen que son `free`. Esta variable es el promedio de esos valores entre las palabras del título. |
+| `pal_frac_free_max` | feature | numérica | 0.3% | 1,899 | 0 / 0.3 / 1 | Para cada palabra del título se calcula la fracción de las *otras* publicaciones que la contienen que son `free`. Esta variable es el máximo de esos valores entre las palabras del título. |
+| `pal_frac_iq_1_media` | feature | numérica | 0.3% | 96,421 | 0 / 0.6885 / 1 | Para cada palabra del título se calcula la fracción de las *otras* publicaciones que la contienen con stock inicial 1. Esta variable es el promedio de esos valores entre las palabras del título. |
+| `pal_frac_iq_1_max` | feature | numérica | 0.3% | 2,249 | 0 / 0.8783 / 1 | Para cada palabra del título se calcula la fracción de las *otras* publicaciones que la contienen con stock inicial 1. Esta variable es el máximo de esos valores entre las palabras del título. |
+| `pal_frac_price_decimales_media` | feature | numérica | 0.3% | 95,794 | 0 / 0.1384 / 0.8 | Para cada palabra del título se calcula la fracción de las *otras* publicaciones que la contienen con precio con centavos. Esta variable es el promedio de esos valores entre las palabras del título. |
+| `pal_frac_price_decimales_max` | feature | numérica | 0.3% | 1,886 | 0 / 0.2371 / 1 | Para cada palabra del título se calcula la fracción de las *otras* publicaciones que la contienen con precio con centavos. Esta variable es el máximo de esos valores entre las palabras del título. |
+| `pal_frac_repuso_stock_media` | feature | numérica | 0.3% | 95,967 | 0 / 0.1562 / 0.75 | Para cada palabra del título se calcula la fracción de las *otras* publicaciones que la contienen donde se repuso stock (`stock_desbalance > 0`). Esta variable es el promedio de esos valores entre las palabras del título. |
+| `pal_frac_repuso_stock_max` | feature | numérica | 0.3% | 1,954 | 0 / 0.2639 / 1 | Para cada palabra del título se calcula la fracción de las *otras* publicaciones que la contienen donde se repuso stock (`stock_desbalance > 0`). Esta variable es el máximo de esos valores entre las palabras del título. |
+| `pal_frac_foto_cuadrada_media` | feature | numérica | 0.3% | 95,945 | 0 / 0.1641 / 1 | Para cada palabra del título se calcula la fracción de las *otras* publicaciones que la contienen con alguna foto cuadrada. Esta variable es el promedio de esos valores entre las palabras del título. |
+| `pal_frac_foto_cuadrada_max` | feature | numérica | 0.3% | 2,080 | 0 / 0.2807 / 1 | Para cada palabra del título se calcula la fracción de las *otras* publicaciones que la contienen con alguna foto cuadrada. Esta variable es el máximo de esos valores entre las palabras del título. |
+
+## Formato de las fotos
+
+| Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
+|---|---|---|---|---|---|---|
+| `pic0_ancho` | aplanado | numérica | 0.8% | 452 | 1 / 491 / 500 | Ancho en píxeles con que se muestra la primera foto (`size`, lado mayor de 500 como máximo). Junto con el alto da la proporción original de la imagen. |
+| `pic0_alto` | aplanado | numérica | 0.8% | 459 | 1 / 377 / 500 | Alto en píxeles con que se muestra la primera foto. |
+| `pic_frac_cuadradas` | aplanado | numérica | 0.8% | 45 | 0 / 0 / 1 | Fracción de las fotos del item que son cuadradas. Las fotos de catálogo o de estudio suelen ser cuadradas. |
+| `pic_n_tamanios` | aplanado | numérica | 0.0% | 22 | 0 / 1 / 28 | Cantidad de tamaños distintos entre las fotos del item. |
+| `pic0_aspecto` | feature | numérica | 0.8% | 6,873 | 0.05 / 1 / 15.62 | `pic0_ancho / pic0_alto`. 1 es cuadrada, 1.33 horizontal 4:3, 0.75 vertical 3:4. |
+| `pic_tiene_cuadrada` | feature | bool | 0.0% | 2 | `False`, `True` | `pic_frac_cuadradas > 0`, es decir, al menos una foto cuadrada. |
+| `pic_aspecto_camara` | feature | bool | 0.0% | 2 | `False`, `True` | La primera foto tiene proporción 4:3 o 16:9 (horizontal o vertical), típica de una foto sacada con celular o cámara compacta sin recortar. |
+| `pic_lado_max` | feature | numérica | 0.8% | 1,122 | 1 / 1200 / 1200 | El lado más largo entre todas las fotos, en su resolución original (`max_size`). El tope de MercadoLibre es 1200 px. |
 
 ## Campos descartados
 

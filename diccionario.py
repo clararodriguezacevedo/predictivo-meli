@@ -11,7 +11,26 @@ docs/DICCIONARIO.md.
 
 from dataclasses import dataclass, field
 
+import features
 from carga import MEDIOS_DE_PAGO
+
+# Qué mide cada indicador de `features.INDICADORES`, para describir los perfiles
+DESCRIPCION_INDICADOR = {
+    "free": "que son `free`",
+    "bronze": "que son `bronze`",
+    "iq_1": "con stock inicial 1",
+    "vendio": "con al menos una venta",
+    "warranty": "con garantía cargada",
+    "price_decimales": "con precio con centavos",
+    "repuso_stock": "donde se repuso stock (`stock_desbalance > 0`)",
+    "foto_cuadrada": "con alguna foto cuadrada",
+    "pago_tarjeta": "que aceptan tarjeta de crédito por fuera de MercadoPago",
+    "t_nuevo": 'cuyo título dice "nuevo"',
+    "t_estado_de_uso": 'cuyo título describe un estado de uso ("como nuevo", "impecable")',
+    "t_antiguo_coleccion": 'cuyo título dice "antiguo", "vintage" o "colección"',
+    "w_plazo": "cuya garantía indica un plazo",
+}
+assert set(DESCRIPCION_INDICADOR) == set(features.INDICADORES)
 
 FUENTES = {
     "tipos": "https://developers.mercadolibre.com.ar/es_ar/tipos-de-publicacion-y-actualizaciones-de-articulos",
@@ -43,6 +62,8 @@ GRUPOS = [
     "Palabras clave en título y garantía",
     "Perfil del vendedor",
     "Perfil de la categoría",
+    "Perfil por palabra del título",
+    "Formato de las fotos",
     "Campos descartados",
 ]
 
@@ -301,6 +322,12 @@ VARIABLES = [
              "Día de la semana de creación en horario argentino (0 = lunes)."),
     Variable("title_len", "Features derivadas del item", DERIVADA,
              "Largo del título en caracteres."),
+    Variable("title_n_digitos", "Features derivadas del item", DERIVADA,
+             "Cantidad de dígitos en el título. Los comercios incluyen modelos, medidas y "
+             "códigos."),
+    Variable("titulo_repetido", "Features derivadas del item", DERIVADA,
+             "Cantidad de publicaciones (train + test) con exactamente el mismo título "
+             "normalizado, contando la propia."),
     Variable("title_frac_mayus", "Features derivadas del item", DERIVADA,
              "Fracción de letras mayúsculas en el título."),
     Variable("warranty_len", "Features derivadas del item", DERIVADA,
@@ -377,17 +404,13 @@ VARIABLES = [
     # Perfil del vendedor
     Variable("seller_n_items", "Perfil del vendedor", DERIVADA,
              "Cantidad de items del vendedor en train + test."),
-    Variable("seller_frac_free", "Perfil del vendedor", DERIVADA,
-             "Fracción de las publicaciones del vendedor que son `free`. Mayor a 0 indica un "
-             "vendedor que califica para publicar gratis, o sea un particular."),
-    Variable("seller_frac_iq_1", "Perfil del vendedor", DERIVADA,
-             "Fracción de las publicaciones del vendedor con stock inicial 1."),
-    Variable("seller_frac_vendio", "Perfil del vendedor", DERIVADA,
-             "Fracción de las publicaciones del vendedor con al menos una venta."),
-    Variable("seller_frac_warranty", "Perfil del vendedor", DERIVADA,
-             "Fracción de las publicaciones del vendedor con garantía cargada."),
-    Variable("seller_frac_price_decimales", "Perfil del vendedor", DERIVADA,
-             "Fracción de las publicaciones del vendedor con precios con centavos."),
+    *[
+        Variable(f"seller_frac_{ind}", "Perfil del vendedor", DERIVADA,
+                 f"Fracción de las publicaciones del vendedor {desc}."
+                 + (" Mayor a 0 indica un vendedor que califica para publicar gratis, o sea "
+                    "un particular." if ind == "free" else ""))
+        for ind, desc in DESCRIPCION_INDICADOR.items()
+    ],
     Variable("seller_mediana_log_price", "Perfil del vendedor", DERIVADA,
              "Mediana del `log_price` de las publicaciones del vendedor."),
     Variable("seller_n_categorias", "Perfil del vendedor", DERIVADA,
@@ -396,18 +419,79 @@ VARIABLES = [
              "`seller_n_categorias / seller_n_items`. Cerca de 1 es un vendedor que publica "
              "cosas variadas (alguien vaciando la casa); cerca de 0, un especialista."),
 
+    Variable("seller_std_log_price", "Perfil del vendedor", DERIVADA,
+             "Desvío estándar del `log_price` entre las publicaciones del vendedor. Nulo si "
+             "tiene un solo item."),
+    Variable("seller_max_initial_quantity", "Perfil del vendedor", DERIVADA,
+             "Mayor stock inicial entre todas las publicaciones del vendedor. Si nunca "
+             "publicó más de 2 unidades de algo, casi seguro es un particular."),
+    Variable("seller_media_n_pictures", "Perfil del vendedor", DERIVADA,
+             "Promedio de fotos por publicación del vendedor."),
+    Variable("seller_n_garantias_distintas", "Perfil del vendedor", DERIVADA,
+             "Cantidad de textos de garantía distintos que usa el vendedor."),
+    Variable("seller_dias_activos", "Perfil del vendedor", DERIVADA,
+             "Cantidad de días distintos en los que el vendedor creó publicaciones."),
+    Variable("seller_span_dias", "Perfil del vendedor", DERIVADA,
+             "Días entre la primera y la última publicación del vendedor en el dataset."),
+    Variable("seller_items_mismo_dia", "Perfil del vendedor", DERIVADA,
+             "Publicaciones que el vendedor creó el mismo día que este item (incluyéndolo)."),
+    Variable("seller_items_mismo_minuto", "Perfil del vendedor", DERIVADA,
+             "Publicaciones que el vendedor creó en el mismo minuto que este item. Valores "
+             "altos indican carga masiva con una herramienta, típica de comercios."),
+    Variable("seller_seg_desde_previo", "Perfil del vendedor", DERIVADA,
+             "Segundos desde la publicación anterior del mismo vendedor. Nulo en su primera "
+             "publicación."),
+
     # Perfil de la categoría
     Variable("cat_n_items", "Perfil de la categoría", DERIVADA,
              "Cantidad de items de la categoría en train + test."),
-    Variable("cat_frac_free", "Perfil de la categoría", DERIVADA,
-             "Fracción de publicaciones `free` en la categoría."),
-    Variable("cat_frac_iq_1", "Perfil de la categoría", DERIVADA,
-             "Fracción de publicaciones con stock inicial 1 en la categoría."),
+    *[
+        Variable(f"cat_frac_{ind}", "Perfil de la categoría", DERIVADA,
+                 f"Fracción de las publicaciones de la categoría {DESCRIPCION_INDICADOR[ind]}.")
+        for ind in features.INDICADORES_CATEGORIA
+    ],
+    Variable("cat_n_sellers", "Perfil de la categoría", DERIVADA,
+             "Cantidad de vendedores distintos en la categoría."),
+    Variable("cat_ratio_sellers", "Perfil de la categoría", DERIVADA,
+             "`cat_n_sellers / cat_n_items`. Cerca de 1 es una categoría donde cada vendedor "
+             "publica un solo item; cerca de 0, una dominada por pocos vendedores."),
     Variable("cat_mediana_log_price", "Perfil de la categoría", DERIVADA,
              "Mediana del `log_price` de la categoría."),
     Variable("log_price_rel_categoria", "Perfil de la categoría", DERIVADA,
              "`log_price - cat_mediana_log_price`: qué tan caro es el item respecto de su "
              "categoría (0 = precio típico)."),
+
+    # Perfil por palabra del título
+    *[
+        Variable(f"pal_frac_{ind}_{resumen}", "Perfil por palabra del título", DERIVADA,
+                 f"Para cada palabra del título se calcula la fracción de las *otras* "
+                 f"publicaciones que la contienen {DESCRIPCION_INDICADOR[ind]}. Esta variable "
+                 f"es {texto} de esos valores entre las palabras del título.")
+        for ind in features.INDICADORES_PALABRA
+        for resumen, texto in [("media", "el promedio"), ("max", "el máximo")]
+    ],
+
+    # Formato de las fotos
+    Variable("pic0_ancho", "Formato de las fotos", APLANADA,
+             "Ancho en píxeles con que se muestra la primera foto (`size`, lado mayor de 500 "
+             "como máximo). Junto con el alto da la proporción original de la imagen."),
+    Variable("pic0_alto", "Formato de las fotos", APLANADA,
+             "Alto en píxeles con que se muestra la primera foto."),
+    Variable("pic_frac_cuadradas", "Formato de las fotos", APLANADA,
+             "Fracción de las fotos del item que son cuadradas. Las fotos de catálogo o de "
+             "estudio suelen ser cuadradas."),
+    Variable("pic_n_tamanios", "Formato de las fotos", APLANADA,
+             "Cantidad de tamaños distintos entre las fotos del item."),
+    Variable("pic0_aspecto", "Formato de las fotos", DERIVADA,
+             "`pic0_ancho / pic0_alto`. 1 es cuadrada, 1.33 horizontal 4:3, 0.75 vertical 3:4."),
+    Variable("pic_tiene_cuadrada", "Formato de las fotos", DERIVADA,
+             "`pic_frac_cuadradas > 0`, es decir, al menos una foto cuadrada."),
+    Variable("pic_aspecto_camara", "Formato de las fotos", DERIVADA,
+             "La primera foto tiene proporción 4:3 o 16:9 (horizontal o vertical), típica de "
+             "una foto sacada con celular o cámara compacta sin recortar."),
+    Variable("pic_lado_max", "Formato de las fotos", DERIVADA,
+             "El lado más largo entre todas las fotos, en su resolución original "
+             "(`max_size`). El tope de MercadoLibre es 1200 px."),
 
     # Descartados
     Variable("site_id", "Campos descartados", DESCARTADA,
