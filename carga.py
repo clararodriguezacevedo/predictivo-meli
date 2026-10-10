@@ -46,23 +46,32 @@ def _nombre(d, clave):
     return valor.get("name") or None
 
 
-def _tamanio_max(foto):
-    """Devuelve (ancho, alto) del max_size de una foto, o (nan, nan)."""
+def _tamanio(foto, campo="max_size"):
+    """Devuelve (ancho, alto) de una foto según `campo`, o (nan, nan)."""
     try:
-        ancho, alto = foto.get("max_size", "").split("x")
+        ancho, alto = foto.get(campo, "").split("x")
         return int(ancho), int(alto)
     except ValueError:
         return np.nan, np.nan
 
 
 def _aplanar_fotos(fotos):
-    tamanios = [_tamanio_max(f) for f in fotos]
+    tamanios = [_tamanio(f) for f in fotos]
     anchos = [a for a, _ in tamanios if not np.isnan(a)]
     altos = [h for _, h in tamanios if not np.isnan(h)]
     fechas = [_RE_FOTO_FECHA.search(f.get("id", "")) for f in fotos]
     fechas = [int(m.group(2)) * 12 + int(m.group(1)) - 1 for m in fechas if m]
+    # `size` es el tamaño con el que se muestra la foto (lado mayor de 500 px como
+    # máximo), así que conserva la proporción original de la imagen
+    mostrados = [t for t in (_tamanio(f, "size") for f in fotos) if not np.isnan(t[0])]
     return {
         "n_pictures": len(fotos),
+        "pic0_ancho": mostrados[0][0] if mostrados else np.nan,
+        "pic0_alto": mostrados[0][1] if mostrados else np.nan,
+        "pic_frac_cuadradas": (
+            sum(a == h for a, h in mostrados) / len(mostrados) if mostrados else np.nan
+        ),
+        "pic_n_tamanios": len(set(mostrados)),
         "pic_max_ancho": max(anchos) if anchos else np.nan,
         "pic_max_alto": max(altos) if altos else np.nan,
         "pic_min_lado": min(min(a, h) for a, h in zip(anchos, altos)) if anchos else np.nan,
