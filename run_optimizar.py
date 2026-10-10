@@ -85,13 +85,27 @@ def main():
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     estudio = optuna.create_study(direction="maximize",
                                   sampler=optuna.samplers.TPESampler(seed=0))
-    # La primera prueba parte de los parámetros por defecto, como punto de referencia
-    # (los que el defecto no fija se sortean)
-    estudio.enqueue_trial(
-        {k: v for k, v in modelo.PARAMETROS_POR_DEFECTO[args.modelo].items()
-         if k != "subsample_freq"},
-        skip_if_exists=True,
-    )
+    # Si ya hubo búsquedas de este modelo con los mismos datos, sus pruebas se cargan
+    # como resultados conocidos, así el buscador sigue desde lo aprendido sin repetirlas
+    prueba_modelo = optuna.create_study().ask()
+    ESPACIOS[args.modelo](prueba_modelo)
+    distribuciones = prueba_modelo.distributions
+    previas = [
+        r for r in registro.leer() if r["tipo"] == "busqueda" and r["modelo"] == args.modelo
+        and r["protocolo"] == protocolo and r["features"] == comun["features"]
+        and r["target_encoding"] == comun["target_encoding"]
+    ]
+    for run in previas:
+        estudio.add_trial(optuna.trial.create_trial(
+            params={k: run["parametros"][k] for k in distribuciones},
+            distributions=distribuciones, value=run["accuracy"],
+        ))
+    print(f"Pruebas anteriores retomadas: {len(previas)}", flush=True)
+    if not previas:
+        # La primera prueba parte de los parámetros por defecto, como punto de
+        # referencia (los que el defecto no fija se sortean)
+        estudio.enqueue_trial({k: v for k, v in modelo.PARAMETROS_POR_DEFECTO[args.modelo].items()
+                               if k != "subsample_freq"})
     estudio.optimize(objetivo, n_trials=args.pruebas,
                      timeout=args.minutos * 60 if args.minutos else None)
 
