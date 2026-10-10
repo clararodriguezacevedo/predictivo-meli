@@ -32,7 +32,8 @@ def tasa_por_categoria(df, col, ax, top=12, min_n=30, titulo=None):
     g = df.groupby(col, dropna=False, observed=True)["y"].agg(["mean", "size"])
     g = g[g["size"] >= min_n].sort_values("size", ascending=False).head(top)
     g = g.sort_values("mean")
-    etiquetas = [str(i) if str(i) != "" else "(vacío)" for i in g.index]
+    especiales = {"": "(vacío)", "nan": "(sin dato)"}
+    etiquetas = [especiales.get(str(i), str(i)) for i in g.index]
     colores = [COLOR_USADO if m > df["y"].mean() else COLOR_NUEVO for m in g["mean"]]
     ax.barh(etiquetas, g["mean"], color=colores, alpha=0.85)
     for i, (m, n) in enumerate(zip(g["mean"], g["size"])):

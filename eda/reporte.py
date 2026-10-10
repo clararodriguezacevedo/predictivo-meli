@@ -11,8 +11,13 @@ class Reporte:
         self.carpeta_figuras = self.carpeta / "figuras"
         self.carpeta_figuras.mkdir(parents=True, exist_ok=True)
         self.partes = [f"# {titulo}\n"]
+        self.n_secciones = 0
 
     def seccion(self, titulo, nivel=2):
+        # Las secciones principales se numeran solas, en el orden en que se agregan
+        if nivel == 2:
+            self.n_secciones += 1
+            titulo = f"{self.n_secciones}. {titulo}"
         self.partes.append(f"\n{'#' * nivel} {titulo}\n")
 
     def texto(self, md):

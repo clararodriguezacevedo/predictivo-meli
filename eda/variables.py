@@ -25,7 +25,7 @@ def _rango_tasas(df, col, min_n=30):
 
 def categoricas(ctx):
     tr, rep = ctx.train, ctx.reporte
-    rep.seccion("5. Variables categóricas")
+    rep.seccion("Variables categóricas")
     fig, ejes = plt.subplots(4, 3, figsize=(15, 16))
     for col, ax in zip(CATEGORICAS, ejes.flat):
         gr.tasa_por_categoria(tr, col, ax)
@@ -64,7 +64,7 @@ viejos y se asocian a usados, igual que "acordar con el comprador" (`MLAWC`).
 
 def stock(ctx):
     tr, rep = ctx.train, ctx.reporte
-    rep.seccion("6. Stock y ventas")
+    rep.seccion("Stock y ventas")
     fig, ejes = plt.subplots(1, 3, figsize=(16, 4.5))
     tr_c = tr.assign(
         initial_quantity_c=tr["initial_quantity"].clip(upper=10),
@@ -103,7 +103,7 @@ def stock(ctx):
 
 def precio(ctx):
     tr, rep = ctx.train, ctx.reporte
-    rep.seccion("7. Precio")
+    rep.seccion("Precio")
     fig, ejes = plt.subplots(1, 3, figsize=(16, 4.5))
     gr.tasa_por_bins(tr, "price", ejes[0], bins=20, log=True, titulo="precio (escala log)")
     gr.tasa_por_bins(tr, "log_price_rel_categoria", ejes[1], bins=10,
@@ -136,7 +136,7 @@ usados.
 
 def temporal(ctx):
     tr, rep = ctx.train, ctx.reporte
-    rep.seccion("8. Variables temporales")
+    rep.seccion("Variables temporales")
     fig, ejes = plt.subplots(2, 2, figsize=(13, 8))
     gr.tasa_por_bins(tr, "dias_hasta_update", ejes[0, 0], bins=10, log=True,
                      titulo="días entre creación y última actualización")
@@ -182,7 +182,7 @@ def tasa_por_palabra(serie, y, minimo):
 
 def texto(ctx):
     tr, rep = ctx.train, ctx.reporte
-    rep.seccion("9. Texto: título y garantía")
+    rep.seccion("Texto: título y garantía")
     for col, minimo in [("title", 300), ("warranty", 150)]:
         palabras = tasa_por_palabra(tr[col], tr["y"], minimo)
         extremos = pd.concat([
@@ -234,7 +234,7 @@ BANDERAS_SEMANTICAS = [
 
 def senales_semanticas(ctx):
     tr, rep = ctx.train, ctx.reporte
-    rep.seccion("10. Señales semánticas: palabras clave y ficha técnica")
+    rep.seccion("Señales semánticas: palabras clave y ficha técnica")
     tabla = pd.DataFrame({
         b: {
             "n": int(tr[b].sum()),

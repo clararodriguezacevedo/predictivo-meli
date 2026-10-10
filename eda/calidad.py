@@ -14,7 +14,7 @@ from eda import graficos as gr
 
 def calidad_datos(ctx):
     tr, te, rep = ctx.train, ctx.test, ctx.reporte
-    rep.seccion("1. Calidad de datos")
+    rep.seccion("Calidad de datos")
     rep.texto(f"""
 Train tiene {len(tr):,} filas y test {len(te):,}. Después de aplanar el JSON y
 agregar features derivadas quedan {te.shape[1]} columnas. Se descartaron por ser
@@ -41,7 +41,7 @@ ese caso el item suele ser usado.
 
 def target(ctx):
     tr, rep = ctx.train, ctx.reporte
-    rep.seccion("2. Target")
+    rep.seccion("Target")
     conteo = tr["condition"].value_counts()
     rep.texto(f"""
 Clases bastante balanceadas: {conteo["new"]:,} `new` ({conteo["new"] / len(tr):.1%}) y
@@ -53,7 +53,7 @@ accuracy y las clases están balanceadas, no hace falta reponderar.
 
 def ids(ctx):
     tr, te, rep = ctx.train, ctx.test, ctx.reporte
-    rep.seccion("3. Identificadores")
+    rep.seccion("Identificadores")
     id_num = tr["id"].str[3:].astype(np.int64)
     corr = np.corrcoef(id_num, tr["date_created"].astype("int64"))[0, 1]
     fig, ejes = plt.subplots(1, 2, figsize=(11, 3.5))
@@ -72,7 +72,7 @@ del dataset: {padre_en_datos:.4%}). Su valor numérico no sirve, pero `seller_id
 
 def train_vs_test(ctx):
     tr, te, rep = ctx.train, ctx.test, ctx.reporte
-    rep.seccion("4. Train vs test (adversarial validation)")
+    rep.seccion("Train vs test (adversarial validation)")
     cols = [
         "log_price", "initial_quantity", "sold_quantity", "available_quantity",
         "n_pictures", "n_attributes", "n_variations", "warranty_len", "title_len",

@@ -8,7 +8,7 @@ import time
 import config
 import features
 from carga import cargar_train_test
-from eda import Contexto, calidad, relaciones, variables
+from eda import Contexto, calidad, contexto, relaciones, variables
 from eda.graficos import estilo
 from eda.reporte import Reporte
 
@@ -23,9 +23,13 @@ SECCIONES = [
     variables.temporal,
     variables.texto,
     variables.senales_semanticas,
+    contexto.fotos,
     relaciones.vendedores,
+    contexto.comportamiento_vendedor,
     relaciones.categorias,
+    contexto.perfil_por_palabra,
     relaciones.ranking_global,
+    contexto.control_de_leakage,
 ]
 
 

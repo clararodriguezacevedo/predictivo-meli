@@ -18,7 +18,10 @@ NUMERICAS = [
     "dias_hasta_update", "duracion_dias", "hora_creacion", "pic_max_ancho",
     "seller_n_items", "seller_frac_free", "seller_frac_iq_1", "seller_frac_vendio",
     "seller_frac_warranty", "seller_frac_price_decimales", "seller_ratio_categorias",
-    "cat_n_items", "cat_frac_free", "cat_frac_iq_1",
+    "cat_n_items", "cat_frac_free", "cat_frac_iq_1", "cat_frac_vendio",
+    "seller_frac_repuso_stock", "seller_frac_foto_cuadrada", "seller_max_initial_quantity",
+    "seller_items_mismo_minuto", "pal_frac_iq_1_media", "pal_frac_free_media",
+    "pic0_aspecto", "pic_frac_cuadradas", "pic_lado_max", "title_n_digitos",
 ]
 BOOLEANAS = [
     "iq_es_1", "vendio_algo", "automatic_relist", "accepts_mercadopago",
@@ -53,7 +56,7 @@ def _pureza(df, clave, min_items=2):
 
 def vendedores(ctx):
     tr, te, rep = ctx.train, ctx.test, ctx.reporte
-    rep.seccion("11. Vendedores: la relación oculta más fuerte")
+    rep.seccion("Vendedores: la relación oculta más fuerte")
     pureza, g = _pureza(tr, "seller_id")
     acc_loo, cobertura = accuracy_leave_one_out(tr, "seller_id")
 
@@ -108,7 +111,7 @@ de items con stock 1 y la fracción de precios con centavos.
 
 def categorias(ctx):
     tr, te, rep = ctx.train, ctx.test, ctx.reporte
-    rep.seccion("12. Categorías")
+    rep.seccion("Categorías")
     pureza, _ = _pureza(tr, "category_id", min_items=20)
     acc_loo, cobertura = accuracy_leave_one_out(tr, "category_id")
     top = (tr.groupby("category_id")["y"].agg(tasa_usados="mean", n="size")
@@ -131,7 +134,7 @@ tienen categoría vista en train. Categorías más grandes:
 
 def ranking_global(ctx):
     tr, rep = ctx.train, ctx.reporte
-    rep.seccion("13. Ranking de variables y correlaciones")
+    rep.seccion("Ranking de variables y correlaciones")
     X = tr[NUMERICAS + BOOLEANAS].astype(float).fillna(-1)
 
     mi = mutual_info_classif(X, tr["y"], random_state=config.SEED)
