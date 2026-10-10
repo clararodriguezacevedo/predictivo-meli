@@ -98,12 +98,79 @@ class EncoderDeTexto:
         return pd.DataFrame({"te_texto": proba}, index=df.index)
 
 
+class EncoderDeVecinos:
+    """Condición de los títulos más parecidos entre las filas con etiqueta.
+
+    Representa cada título con TF-IDF de palabras y pares de palabras, y para cada
+    fila busca los `k` títulos de entrenamiento con mayor similitud coseno. Devuelve
+    la tasa de usados de esos vecinos (simple y ponderada por similitud) y qué tan
+    parecido es el más cercano. Captura "este producto exacto suele venderse
+    usado", algo que un modelo lineal sobre palabras sueltas no ve.
+
+    Las palabras muy frecuentes se descartan (`max_df`): no ayudan a encontrar
+    productos parecidos y hacen la búsqueda mucho más lenta.
+    """
+
+    def __init__(self, k=10, max_df=0.02, bloque=2000):
+        self.k = k
+        self.max_df = max_df
+        self.bloque = bloque
+
+    def fit(self, df, y):
+        self.vectorizador_ = TfidfVectorizer(
+            ngram_range=(1, 2), min_df=2, max_df=self.max_df, sublinear_tf=True,
+            token_pattern=r"[a-z0-9]+",
+        )
+        # TF-IDF ya normaliza cada fila, así que el producto punto es la similitud coseno
+        self.matriz_ = self.vectorizador_.fit_transform(normalizar_texto(df["title"])).T.tocsr()
+        self.y_ = y.to_numpy().astype(float)
+        self.tasa_global_ = self.y_.mean()
+        return self
+
+    def _vecinos(self, consultas):
+        """Similitud y etiqueta de los k vecinos más cercanos de cada consulta."""
+        n = consultas.shape[0]
+        similitud = np.zeros((n, self.k))
+        etiqueta = np.full((n, self.k), np.nan)
+        for inicio in range(0, n, self.bloque):
+            producto = (consultas[inicio:inicio + self.bloque] @ self.matriz_).tocsr()
+            for i in range(producto.shape[0]):
+                fila = slice(producto.indptr[i], producto.indptr[i + 1])
+                valores, indices = producto.data[fila], producto.indices[fila]
+                if len(valores) > self.k:
+                    mejores = np.argpartition(valores, -self.k)[-self.k:]
+                    valores, indices = valores[mejores], indices[mejores]
+                similitud[inicio + i, :len(valores)] = valores
+                etiqueta[inicio + i, :len(valores)] = self.y_[indices]
+        return similitud, etiqueta
+
+    def transform(self, df):
+        consultas = self.vectorizador_.transform(normalizar_texto(df["title"]))
+        similitud, etiqueta = self._vecinos(consultas)
+        hay_vecino = ~np.isnan(etiqueta)
+        n_vecinos = hay_vecino.sum(axis=1)
+        usados = np.where(hay_vecino, etiqueta, 0)
+        peso = similitud.sum(axis=1)
+        sin_vecinos = n_vecinos == 0
+        with np.errstate(invalid="ignore", divide="ignore"):
+            tasa = usados.sum(axis=1) / n_vecinos
+            tasa_ponderada = (usados * similitud).sum(axis=1) / peso
+        return pd.DataFrame({
+            "te_vecinos_tasa": np.where(sin_vecinos, np.nan, tasa),
+            "te_vecinos_tasa_ponderada": np.where(sin_vecinos, np.nan, tasa_ponderada),
+            "te_vecinos_similitud_max": similitud.max(axis=1),
+            "te_vecinos_similitud_media": np.where(sin_vecinos, 0, peso / np.maximum(n_vecinos, 1)),
+            "te_vecinos_n": n_vecinos,
+        }, index=df.index)
+
+
 def crear_encoders():
     """Encoders nuevos, sin ajustar. Se crean de nuevo para cada fold."""
     return [
         EncoderDeGrupo("seller_id"),
         EncoderDeGrupo("category_id"),
         EncoderDeTexto(),
+        EncoderDeVecinos(k=30),
     ]
 
 
