@@ -28,7 +28,11 @@
   nueva se agrega ahí.
 - `evaluacion.py`: validación cruzada rápida con LightGBM. `run_evaluar_features.py` mide
   el accuracy y cuánto aporta cada grupo de features.
-- `run_verificar_leakage.py`: controla que ninguna feature dependa del target.
+- `target_encoding.py`: features que usan el target (tasa de usados por vendedor y
+  categoría, modelo de texto), calculadas con folds anidados. `modelo.py`: une features,
+  target encoding y LightGBM. `run_validar_modelo.py` reporta el accuracy de validación.
+- `run_verificar_leakage.py`: cinco controles de leakage sobre features, target encoding
+  y modelo completo.
 - Datos crudos en `data/raw/`. `data/`, `outputs/` y `.venv/` no se versionan.
 - Entorno: `.venv` con `requirements.txt`. Correr con `.venv/Scripts/python <script>.py`.
 
@@ -36,10 +40,11 @@
 
 - Las features de `features.py` no pueden usar el target ni nada que no exista en test.
 - Los agregados (vendedor, categoría, palabra) se calculan sobre train + test juntos.
-- Después de tocar `features.py` o `carga.py`, correr `run_verificar_leakage.py`. Tiene
-  que dar OK en los tres controles antes de commitear.
-- Las features que usan el target (target encoding, modelos de texto supervisados) solo
-  son válidas calculadas out-of-fold y van en la etapa de modelado, no en `features.py`.
+- Después de tocar `features.py`, `carga.py`, `target_encoding.py` o `modelo.py`, correr
+  `run_verificar_leakage.py`. Tiene que dar OK en los cinco controles antes de commitear.
+- Las features que usan el target van en `target_encoding.py`, nunca en `features.py`, y
+  siempre con folds (no leave-one-out): validación y test se codifican con las etiquetas
+  de entrenamiento, y el entrenamiento por sub-folds.
 
 ## Commits
 
