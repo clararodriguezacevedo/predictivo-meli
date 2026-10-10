@@ -22,14 +22,24 @@ import evaluacion
 import features
 import modelo
 import registro
+import target_encoding
 from carga import cargar_train_test
 
 CARPETA = config.OUTPUTS / "submissions"
+# Nombre de la columna de identificación que espera Kaggle (configuración de la
+# competencia, `rowIdColumnName`)
+COLUMNA_ID = "ID"
 
 
 def generar(run_validacion):
     tipo, parametros = run_validacion["modelo"], run_validacion["parametros"]
     usar_te = run_validacion["target_encoding"]["activo"]
+    # La submission tiene que usar exactamente la configuración que se validó
+    if run_validacion["target_encoding"] != target_encoding.descripcion(usar_te):
+        raise SystemExit(
+            f"La corrida {run_validacion['id']} se validó con otra configuración de target "
+            "encoding que la actual. Validar de nuevo con run_validar_modelo.py."
+        )
     semilla = config.SEED
     inicio = time.time()
 
@@ -52,7 +62,7 @@ def generar(run_validacion):
     nombre = f"{datetime.now():%Y%m%d-%H%M%S}-{tipo}"
     archivo = CARPETA / f"{nombre}.csv"
     pd.DataFrame({
-        "id": test["id"],
+        COLUMNA_ID: test["id"],
         config.TARGET: pd.Series(es_usado).map({True: config.CLASE_POSITIVA, False: "new"}),
     }).to_csv(archivo, index=False)
     # Las probabilidades se guardan aparte, por si después se combinan modelos
