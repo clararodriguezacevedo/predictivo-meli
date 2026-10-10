@@ -515,6 +515,19 @@ VARIABLES = [
              "Probabilidad de usado según una regresión logística sobre las palabras y "
              "pares de palabras del título y de la garantía (TF-IDF). El modelo de texto se "
              "entrena solo con etiquetas de otras filas, con el mismo esquema de folds."),
+    Variable("te_vecinos_tasa", "Target encoding (con folds)", CON_TARGET,
+             "Tasa de usados entre los 30 títulos más parecidos (similitud coseno sobre "
+             "TF-IDF) de las filas con etiqueta. Mismo esquema de folds que el resto. Nulo "
+             "si ningún título comparte palabras con el del item."),
+    Variable("te_vecinos_tasa_ponderada", "Target encoding (con folds)", CON_TARGET,
+             "Igual que `te_vecinos_tasa`, pero cada vecino pesa según su similitud."),
+    Variable("te_vecinos_similitud_max", "Target encoding (con folds)", CON_TARGET,
+             "Similitud del título más parecido (0 a 1). Cerca de 1 indica que existe una "
+             "publicación casi idéntica con etiqueta."),
+    Variable("te_vecinos_similitud_media", "Target encoding (con folds)", CON_TARGET,
+             "Similitud promedio de los vecinos encontrados."),
+    Variable("te_vecinos_n", "Target encoding (con folds)", CON_TARGET,
+             "Cantidad de vecinos encontrados (hasta 30)."),
 
     # Descartados
     Variable("site_id", "Campos descartados", DESCARTADA,
