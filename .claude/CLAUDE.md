@@ -26,8 +26,20 @@
 - `diccionario.py`: significado de cada variable. `run_diccionario.py` genera
   `docs/DICCIONARIO.md` y avisa si hay columnas sin documentar. Toda variable o feature
   nueva se agrega ahí.
+- `evaluacion.py`: validación cruzada rápida con LightGBM. `run_evaluar_features.py` mide
+  el accuracy y cuánto aporta cada grupo de features.
+- `run_verificar_leakage.py`: controla que ninguna feature dependa del target.
 - Datos crudos en `data/raw/`. `data/`, `outputs/` y `.venv/` no se versionan.
 - Entorno: `.venv` con `requirements.txt`. Correr con `.venv/Scripts/python <script>.py`.
+
+## Leakage
+
+- Las features de `features.py` no pueden usar el target ni nada que no exista en test.
+- Los agregados (vendedor, categoría, palabra) se calculan sobre train + test juntos.
+- Después de tocar `features.py` o `carga.py`, correr `run_verificar_leakage.py`. Tiene
+  que dar OK en los tres controles antes de commitear.
+- Las features que usan el target (target encoding, modelos de texto supervisados) solo
+  son válidas calculadas out-of-fold y van en la etapa de modelado, no en `features.py`.
 
 ## Commits
 
