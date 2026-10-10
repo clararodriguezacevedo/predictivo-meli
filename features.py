@@ -10,11 +10,17 @@ import unicodedata
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
+from sklearn.feature_extraction.text import CountVectorizer
 
 import config
 
 # Año de referencia del dataset (casi todo se publicó en 2015)
 ANIO_DATOS = 2015
+
+# Proporciones típicas de fotos sacadas con celular o cámara compacta (4:3 y 16:9,
+# horizontales o verticales), redondeadas a 2 decimales
+ASPECTOS_DE_CAMARA = [1.33, 1.34, 0.75, 0.74, 1.78, 1.79, 0.56]
 
 # Patrones sobre el título normalizado (minúsculas, sin tildes). "como nuevo",
 # "igual a nuevo" y "casi nuevo" se separan de "nuevo" porque significan lo contrario.
@@ -98,9 +104,16 @@ def agregar_features_item(df):
 
     # Texto
     df["title_len"] = df["title"].str.len()
+    df["title_n_digitos"] = df["title"].str.count(r"\d")
     df["title_frac_mayus"] = df["title"].str.count(r"[A-Z]") / df["title_len"].clip(lower=1)
     df["warranty_len"] = df["warranty"].fillna("").str.len()
     df["tiene_warranty"] = df["warranty"].notna()
+
+    # Fotos: las de catálogo suelen ser cuadradas, las de celular o cámara son 4:3 o 16:9
+    df["pic0_aspecto"] = df["pic0_ancho"] / df["pic0_alto"]
+    df["pic_tiene_cuadrada"] = df["pic_frac_cuadradas"] > 0
+    df["pic_aspecto_camara"] = df["pic0_aspecto"].round(2).isin(ASPECTOS_DE_CAMARA)
+    df["pic_lado_max"] = df[["pic_max_ancho", "pic_max_alto"]].max(axis=1)
 
     # Presencia de campos opcionales
     df["tiene_video"] = df["video_id"].notna()
@@ -109,37 +122,143 @@ def agregar_features_item(df):
     return df
 
 
-def _perfil(df, clave, prefijo):
-    g = df.groupby(clave)
-    perfil = pd.DataFrame({
-        "n_items": g.size(),
-        "frac_free": g["listing_type_id"].agg(lambda s: (s == "free").mean()),
-        "frac_iq_1": g["iq_es_1"].mean(),
-        "frac_vendio": g["vendio_algo"].mean(),
-        "frac_warranty": g["tiene_warranty"].mean(),
-        "frac_price_decimales": g["price_con_decimales"].mean(),
-        "mediana_log_price": g["log_price"].median(),
-        "n_categorias": g["category_id"].nunique(),
-    })
-    return perfil.add_prefix(prefijo)
+# Indicadores por item (0/1) que se promedian por vendedor o categoría. Ninguno
+# usa el target: describen cómo publica el vendedor, no qué condición declaró.
+INDICADORES = {
+    "free": lambda df: df["listing_type_id"] == "free",
+    "bronze": lambda df: df["listing_type_id"] == "bronze",
+    "iq_1": lambda df: df["iq_es_1"],
+    "vendio": lambda df: df["vendio_algo"],
+    "warranty": lambda df: df["tiene_warranty"],
+    "price_decimales": lambda df: df["price_con_decimales"],
+    "repuso_stock": lambda df: df["stock_desbalance"] > 0,
+    "foto_cuadrada": lambda df: df["pic_tiene_cuadrada"],
+    "pago_tarjeta": lambda df: df["pay_MLAOT"],
+    "t_nuevo": lambda df: df["t_nuevo"],
+    "t_estado_de_uso": lambda df: df["t_estado_de_uso"],
+    "t_antiguo_coleccion": lambda df: df["t_antiguo_coleccion"],
+    "w_plazo": lambda df: df["w_plazo"],
+}
+INDICADORES_CATEGORIA = [
+    "free", "iq_1", "vendio", "warranty", "price_decimales", "repuso_stock",
+    "foto_cuadrada", "t_nuevo", "t_estado_de_uso", "t_antiguo_coleccion", "w_plazo",
+]
+# Indicadores que se promedian por palabra del título
+INDICADORES_PALABRA = ["free", "iq_1", "price_decimales", "repuso_stock", "foto_cuadrada"]
+# Una palabra tiene que aparecer en al menos esta cantidad de títulos para tener perfil
+MIN_TITULOS_POR_PALABRA = 5
+
+
+def _indicadores(df):
+    return pd.DataFrame({n: f(df).astype(float) for n, f in INDICADORES.items()}, index=df.index)
+
+
+def _perfil_vendedor(todo, indicadores):
+    g = todo.groupby("seller_id")
+    perfil = indicadores.groupby(todo["seller_id"]).mean().add_prefix("seller_frac_")
+    perfil["seller_n_items"] = g.size()
+    perfil["seller_mediana_log_price"] = g["log_price"].median()
+    perfil["seller_std_log_price"] = g["log_price"].std()
+    perfil["seller_n_categorias"] = g["category_id"].nunique()
+    perfil["seller_ratio_categorias"] = perfil["seller_n_categorias"] / perfil["seller_n_items"]
+    perfil["seller_max_initial_quantity"] = g["initial_quantity"].max()
+    perfil["seller_media_n_pictures"] = g["n_pictures"].mean()
+    perfil["seller_n_garantias_distintas"] = g["warranty"].nunique()
+    # Ritmo de publicación: en cuántos días distintos publicó y a lo largo de cuánto tiempo
+    perfil["seller_dias_activos"] = g["date_created"].agg(lambda s: s.dt.date.nunique())
+    perfil["seller_span_dias"] = (g["date_created"].max() - g["date_created"].min()).dt.days
+    return perfil
+
+
+def _perfil_categoria(todo, indicadores):
+    g = todo.groupby("category_id")
+    perfil = (indicadores[INDICADORES_CATEGORIA].groupby(todo["category_id"]).mean()
+              .add_prefix("cat_frac_"))
+    perfil["cat_n_items"] = g.size()
+    perfil["cat_mediana_log_price"] = g["log_price"].median()
+    perfil["cat_n_sellers"] = g["seller_id"].nunique()
+    perfil["cat_ratio_sellers"] = perfil["cat_n_sellers"] / perfil["cat_n_items"]
+    return perfil
+
+
+def _perfil_palabras(todo, indicadores):
+    """Perfil del título a partir de sus palabras, sin usar el target.
+
+    Para cada palabra se calcula la media de un indicador (por ejemplo, publicación
+    gratuita) entre los títulos que la contienen, excluyendo al propio item
+    (leave-one-out) para que un item no se describa a sí mismo. Después se resume
+    cada título con la media y el máximo sobre sus palabras. Es una forma de saber
+    "qué tipo de producto es" mirando cómo se publican los productos parecidos.
+    """
+    vectorizador = CountVectorizer(
+        binary=True, min_df=MIN_TITULOS_POR_PALABRA, token_pattern=r"[a-z0-9]+"
+    )
+    X = vectorizador.fit_transform(normalizar_texto(todo["title"])).tocoo()
+    titulos_por_palabra = np.bincount(X.col, minlength=X.shape[1])
+    palabras_por_titulo = np.bincount(X.row, minlength=X.shape[0])
+
+    perfil = pd.DataFrame(index=todo.index)
+    for nombre in INDICADORES_PALABRA:
+        valor = indicadores[nombre].to_numpy()
+        suma_por_palabra = np.bincount(X.col, weights=valor[X.row], minlength=X.shape[1])
+        # Media de la palabra entre los otros títulos que la contienen
+        media_sin_el_item = (suma_por_palabra[X.col] - valor[X.row]) / (
+            titulos_por_palabra[X.col] - 1
+        )
+        M = sp.csr_matrix((media_sin_el_item, (X.row, X.col)), shape=X.shape)
+        con_palabras = palabras_por_titulo > 0
+        media = np.full(X.shape[0], np.nan)
+        media[con_palabras] = (
+            np.asarray(M.sum(axis=1)).ravel()[con_palabras] / palabras_por_titulo[con_palabras]
+        )
+        maximo = np.where(con_palabras, M.max(axis=1).toarray().ravel(), np.nan)
+        perfil[f"pal_frac_{nombre}_media"] = media
+        perfil[f"pal_frac_{nombre}_max"] = maximo
+    return perfil
+
+
+def _contexto_por_item(todo):
+    """Features de cada item que dependen de las otras publicaciones (train + test)."""
+    ctx = pd.DataFrame(index=todo.index)
+    titulo = normalizar_texto(todo["title"])
+    ctx["titulo_repetido"] = titulo.map(titulo.value_counts())
+
+    # Ráfagas: publicaciones del mismo vendedor el mismo día o en el mismo minuto
+    vendedor, creado = todo["seller_id"], todo["date_created"]
+    ctx["seller_items_mismo_dia"] = (
+        todo.groupby([vendedor, creado.dt.date])["id"].transform("size")
+    )
+    ctx["seller_items_mismo_minuto"] = (
+        todo.groupby([vendedor, creado.dt.floor("min")])["id"].transform("size")
+    )
+    orden = todo.sort_values("date_created")
+    ctx["seller_seg_desde_previo"] = (
+        orden.groupby("seller_id")["date_created"].diff().dt.total_seconds()
+    )
+    return ctx
 
 
 def agregar_perfiles(train, test):
-    """Agrega perfiles agregados por vendedor y categoría, calculados sobre train + test.
+    """Agrega features que miran a otras publicaciones, calculadas sobre train + test.
 
-    Espera DataFrames ya pasados por `agregar_features_item`.
+    Son perfiles del vendedor y de la categoría, y features de contexto por item.
+    Nada de esto usa el target: se descarta antes de calcular. Espera DataFrames ya
+    pasados por las funciones de features por item.
     """
-    todo = pd.concat([train.drop(columns=[config.TARGET], errors="ignore"), test])
-    perfil_vendedor = _perfil(todo, "seller_id", "seller_")
-    perfil_vendedor["seller_ratio_categorias"] = (
-        perfil_vendedor["seller_n_categorias"] / perfil_vendedor["seller_n_items"]
+    todo = pd.concat(
+        [train.drop(columns=[config.TARGET], errors="ignore"), test], ignore_index=True
     )
-    perfil_categoria = _perfil(todo, "category_id", "cat_")[
-        ["cat_n_items", "cat_frac_free", "cat_frac_iq_1", "cat_mediana_log_price"]
-    ]
+    indicadores = _indicadores(todo)
+    perfil_vendedor = _perfil_vendedor(todo, indicadores)
+    perfil_categoria = _perfil_categoria(todo, indicadores)
+    contexto = pd.concat(
+        [_contexto_por_item(todo), _perfil_palabras(todo, indicadores)], axis=1
+    ).set_index(todo["id"])
 
     def _unir(df):
-        df = df.join(perfil_vendedor, on="seller_id").join(perfil_categoria, on="category_id")
+        df = (df.join(perfil_vendedor, on="seller_id")
+                .join(perfil_categoria, on="category_id")
+                .join(contexto, on="id"))
         df["log_price_rel_categoria"] = df["log_price"] - df["cat_mediana_log_price"]
         return df
 
