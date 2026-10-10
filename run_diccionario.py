@@ -11,7 +11,7 @@ import pandas as pd
 import config
 import features
 from carga import cargar_train_test
-from diccionario import DESCARTADA, FUENTES, GRUPOS, VARIABLES
+from diccionario import FUENTES, GRUPOS, SIN_ESTADISTICAS, VARIABLES
 
 
 def _tipo(serie):
@@ -55,6 +55,7 @@ def generar(datos):
         "| aplanado | extraído de un campo anidado (listas o diccionarios) en `carga.py` |",
         "| feature | calculada en `features.py`, sin usar el target |",
         "| descartada | campo del JSON que no se carga por ser constante o redundante |",
+        "| con target | usa `condition`, se calcula con folds en `target_encoding.py` |",
         "",
     ]
     for grupo in GRUPOS:
@@ -63,7 +64,7 @@ def generar(datos):
                    "| Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |",
                    "|---|---|---|---|---|---|---|"]
         for v in variables:
-            if v.nombre in datos and v.origen != DESCARTADA:
+            if v.nombre in datos and v.origen not in SIN_ESTADISTICAS:
                 s = datos[v.nombre]
                 stats = [_tipo(s), f"{s.isna().mean():.1%}", f"{s.nunique():,}", _resumen(s)]
             else:
@@ -96,7 +97,7 @@ def main():
     if sin_documentar:
         print(f"ATENCIÓN, columnas sin documentar: {sin_documentar}")
     faltantes = sorted(v.nombre for v in VARIABLES
-                       if v.origen != DESCARTADA and v.nombre not in datos)
+                       if v.origen not in SIN_ESTADISTICAS and v.nombre not in datos)
     if faltantes:
         print(f"ATENCIÓN, variables documentadas que no están en los datos: {faltantes}")
 

@@ -8,6 +8,7 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | aplanado | extraído de un campo anidado (listas o diccionarios) en `carga.py` |
 | feature | calculada en `features.py`, sin usar el target |
 | descartada | campo del JSON que no se carga por ser constante o redundante |
+| con target | usa `condition`, se calcula con folds en `target_encoding.py` |
 
 ## Target
 
@@ -320,6 +321,16 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `pic_tiene_cuadrada` | feature | bool | 0.0% | 2 | `False`, `True` | `pic_frac_cuadradas > 0`, es decir, al menos una foto cuadrada. |
 | `pic_aspecto_camara` | feature | bool | 0.0% | 2 | `False`, `True` | La primera foto tiene proporción 4:3 o 16:9 (horizontal o vertical), típica de una foto sacada con celular o cámara compacta sin recortar. |
 | `pic_lado_max` | feature | numérica | 0.8% | 1,122 | 1 / 1200 / 1200 | El lado más largo entre todas las fotos, en su resolución original (`max_size`). El tope de MercadoLibre es 1200 px. |
+
+## Target encoding (con folds)
+
+| Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
+|---|---|---|---|---|---|---|
+| `te_seller_id` | con target |  |  |  |  | Tasa de usados del vendedor, suavizada hacia la tasa global cuando tiene pocos items. Se calcula solo con etiquetas de otras filas: por sub-folds para el entrenamiento y con todo el entrenamiento para validación o test. Nulo si el vendedor no tiene ningún item con etiqueta. |
+| `te_seller_id_n` | con target |  |  |  |  | Cantidad de items con etiqueta del vendedor en los que se apoya `te_seller_id`. Le dice al modelo cuánto confiar en esa tasa. |
+| `te_category_id` | con target |  |  |  |  | Tasa de usados de la categoría, calculada igual que `te_seller_id`. |
+| `te_category_id_n` | con target |  |  |  |  | Cantidad de items con etiqueta de la categoría en los que se apoya `te_category_id`. |
+| `te_texto` | con target |  |  |  |  | Probabilidad de usado según una regresión logística sobre las palabras y pares de palabras del título y de la garantía (TF-IDF). El modelo de texto se entrena solo con etiquetas de otras filas, con el mismo esquema de folds. |
 
 ## Campos descartados
 

@@ -45,6 +45,9 @@ CRUDA = "JSON"          # campo de primer nivel del JSON, sin cambios
 APLANADA = "aplanado"   # extraída de un campo anidado en carga.py
 DERIVADA = "feature"    # calculada en features.py
 DESCARTADA = "descartada"
+CON_TARGET = "con target"  # calculada con folds en target_encoding.py
+# Orígenes que no son columnas del dataset de features y no tienen estadísticas
+SIN_ESTADISTICAS = (DESCARTADA, CON_TARGET)
 
 GRUPOS = [
     "Target",
@@ -64,6 +67,7 @@ GRUPOS = [
     "Perfil de la categoría",
     "Perfil por palabra del título",
     "Formato de las fotos",
+    "Target encoding (con folds)",
     "Campos descartados",
 ]
 
@@ -492,6 +496,25 @@ VARIABLES = [
     Variable("pic_lado_max", "Formato de las fotos", DERIVADA,
              "El lado más largo entre todas las fotos, en su resolución original "
              "(`max_size`). El tope de MercadoLibre es 1200 px."),
+
+    # Target encoding: no están en features.construir, se calculan dentro de cada fold
+    Variable("te_seller_id", "Target encoding (con folds)", CON_TARGET,
+             "Tasa de usados del vendedor, suavizada hacia la tasa global cuando tiene "
+             "pocos items. Se calcula solo con etiquetas de otras filas: por sub-folds para "
+             "el entrenamiento y con todo el entrenamiento para validación o test. Nulo si "
+             "el vendedor no tiene ningún item con etiqueta."),
+    Variable("te_seller_id_n", "Target encoding (con folds)", CON_TARGET,
+             "Cantidad de items con etiqueta del vendedor en los que se apoya `te_seller_id`. "
+             "Le dice al modelo cuánto confiar en esa tasa."),
+    Variable("te_category_id", "Target encoding (con folds)", CON_TARGET,
+             "Tasa de usados de la categoría, calculada igual que `te_seller_id`."),
+    Variable("te_category_id_n", "Target encoding (con folds)", CON_TARGET,
+             "Cantidad de items con etiqueta de la categoría en los que se apoya "
+             "`te_category_id`."),
+    Variable("te_texto", "Target encoding (con folds)", CON_TARGET,
+             "Probabilidad de usado según una regresión logística sobre las palabras y "
+             "pares de palabras del título y de la garantía (TF-IDF). El modelo de texto se "
+             "entrena solo con etiquetas de otras filas, con el mismo esquema de folds."),
 
     # Descartados
     Variable("site_id", "Campos descartados", DESCARTADA,
