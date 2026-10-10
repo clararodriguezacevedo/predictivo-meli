@@ -112,7 +112,9 @@ def verificar_target_mezclado(train, test):
     tr, y = _muestra_con_features(train, test)
     rng = np.random.default_rng(config.SEED)
     y_mezclado = pd.Series(rng.permutation(y.to_numpy()), index=y.index)
-    accuracy, _ = modelo.validar(tr, y_mezclado, n_folds=3, semillas=(0,))
+    accuracy, _ = modelo.validar(
+        tr, y_mezclado, protocolo={"n_folds": 3, "semillas": [0]}, registrar=False
+    )
     azar = max(y.mean(), 1 - y.mean())
     print(f"      accuracy con target mezclado {accuracy:.3f}, clase mayoritaria {azar:.3f}")
     if accuracy > azar + TOLERANCIA_AZAR:
