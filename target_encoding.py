@@ -131,3 +131,14 @@ def codificar(train, y, a_predecir, semilla=config.SEED):
     te_train = pd.concat(partes).loc[train.index]
     te_prediccion = _ajustar_y_aplicar(train, y, a_predecir)
     return te_train, te_prediccion
+
+
+def descripcion(activo=True):
+    """Configuración del target encoding, para dejarla anotada en el registro."""
+    if not activo:
+        return {"activo": False}
+    return {
+        "activo": True,
+        "n_subfolds": N_SUBFOLDS,
+        "encoders": [{"tipo": type(e).__name__, **vars(e)} for e in crear_encoders()],
+    }
