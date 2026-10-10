@@ -161,8 +161,28 @@ Todas las features se construyen cumpliendo estas reglas:
 Para confirmar que el control sirve, se le inyectó una feature tramposa (la tasa de
 usados por vendedor) y la detectó por los tres caminos.
 
-Lo que queda afuera a propósito son las features que sí usan el target, como el
-target encoding por vendedor o un modelo de texto supervisado. Son válidas solo si
-se calculan out-of-fold dentro de la validación cruzada, y corresponden a la etapa
-de modelado.
+""")
+    rep.seccion("Features que sí usan el target", nivel=3)
+    rep.texto("""
+La tasa de usados por vendedor, por categoría y un modelo de texto supervisado son
+muy informativos, pero usan `condition`. Viven aparte, en `target_encoding.py`, y
+se calculan con folds anidados:
+
+- Las filas a predecir (validación o test) se codifican con las etiquetas del
+  entrenamiento. Sus propias etiquetas no intervienen.
+- Las filas de entrenamiento se codifican por sub-folds: cada una recibe valores
+  calculados con las etiquetas de los otros sub-folds.
+
+No se usa leave-one-out porque ahí el valor de cada fila depende, al revés, de su
+propia etiqueta, y un modelo de árboles puede deducirla. El verificador suma dos
+controles para esta parte:
+
+| Control | Qué verifica | Qué error atrapa |
+|---|---|---|
+| Sin etiqueta propia | al invertir las etiquetas de un sub-fold, sus features no cambian | codificar el entrenamiento con sus propias etiquetas, o con leave-one-out |
+| Target mezclado | con etiquetas al azar, el accuracy de validación cae al de la clase mayoritaria | calcular el encoding con todas las etiquetas antes de separar la validación |
+
+Los dos controles se probaron contra implementaciones tramposas. Con el encoding
+calculado de forma global, el modelo "acierta" 79% con etiquetas al azar (lo
+esperable es 53%). Con la implementación real da 51%.
 """)
