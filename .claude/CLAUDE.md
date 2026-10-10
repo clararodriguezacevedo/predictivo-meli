@@ -30,11 +30,26 @@
   el accuracy y cuánto aporta cada grupo de features.
 - `target_encoding.py`: features que usan el target (tasa de usados por vendedor y
   categoría, modelo de texto), calculadas con folds anidados. `modelo.py`: une features,
-  target encoding y LightGBM. `run_validar_modelo.py` reporta el accuracy de validación.
+  target encoding y el clasificador (LightGBM o XGBoost).
+- `registro.py`: registro de corridas (ver sección propia).
 - `run_verificar_leakage.py`: cinco controles de leakage sobre features, target encoding
   y modelo completo.
 - Datos crudos en `data/raw/`. `data/`, `outputs/` y `.venv/` no se versionan.
 - Entorno: `.venv` con `requirements.txt`. Correr con `.venv/Scripts/python <script>.py`.
+
+## Registro de corridas
+
+- Toda corrida de validación, cada prueba de una búsqueda de hiperparámetros y toda
+  submission se anota en `registro/runs.jsonl` con sus parámetros exactos y su resultado.
+  Lo hace `registro.py`; nunca correr un modelo por fuera de los scripts que registran.
+- `runs.jsonl` no se edita ni se reescribe, solo se agregan líneas. `registro/RUNS.md` es
+  el resumen legible y se regenera solo. Los dos se versionan.
+- Tipos: `validacion` (protocolo estándar de 5 folds y 2 semillas, comparables entre sí),
+  `busqueda` (protocolo liviano de `run_optimizar.py`, no comparable con las anteriores) y
+  `submission` (siempre atada a una corrida de validación).
+- Scripts: `run_validar_modelo.py`, `run_optimizar.py`, `run_submission.py`. Después de
+  subir una submission a Kaggle, anotar el puntaje con `run_submission.py --anotar`.
+- Para elegir modelo se comparan solo corridas de tipo `validacion`.
 
 ## Leakage
 
