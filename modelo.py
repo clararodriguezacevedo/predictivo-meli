@@ -126,3 +126,23 @@ def validar(train, y, tipo="lightgbm", parametros=None, usar_target_encoding=Tru
             nota=nota, **descripcion_comun(folds, protocolo, usar_target_encoding),
         )
     return accuracy, error
+
+
+def predecir_en_folds(folds, tipo, parametros):
+    """Predicción de validación de cada fila, hecha por un modelo que no la vio.
+
+    Devuelve un DataFrame con la probabilidad de usado, la etiqueta real y las
+    features de target encoding que recibió la fila al ser validada. Sirve para
+    analizar errores. Si el protocolo tiene varias semillas, cada fila aparece una
+    vez por semilla.
+    """
+    partes = []
+    for X_tr, y_tr, X_val, y_val, semilla in folds:
+        clasificador = crear_clasificador(tipo, parametros, semilla).fit(X_tr, y_tr)
+        columnas_te = [c for c in X_val.columns if c.startswith("te_")]
+        parte = X_val[columnas_te].copy()
+        parte["proba_usado"] = clasificador.predict_proba(X_val)[:, 1]
+        parte["y"] = y_val
+        parte["semilla"] = semilla
+        partes.append(parte)
+    return pd.concat(partes)
