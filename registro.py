@@ -95,10 +95,12 @@ def mejor_validacion(modelo=None):
     return max(candidatas, key=lambda r: r["accuracy"])
 
 
-def anotar_leaderboard(run_id, puntaje):
+def anotar_leaderboard(run_id, puntaje, nota=""):
     """Agrega una línea con el puntaje público de una submission ya registrada."""
     buscar(run_id)
-    return registrar("leaderboard", "", {}, submission=run_id, leaderboard_publico=puntaje)
+    return registrar(
+        "leaderboard", "", {}, submission=run_id, leaderboard_publico=puntaje, nota=nota
+    )
 
 
 def _parametros_cortos(parametros):

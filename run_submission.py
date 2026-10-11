@@ -26,9 +26,11 @@ import target_encoding
 from carga import cargar_train_test
 
 CARPETA = config.OUTPUTS / "submissions"
-# Nombre de la columna de identificación que espera Kaggle (configuración de la
-# competencia, `rowIdColumnName`)
+# Formato que espera Kaggle, confirmado con la primera submission aceptada:
+# columna `ID` con el número de fila del archivo de test empezando en 1 (no el id
+# de MercadoLibre) y columna `condition` con "new" o "used"
 COLUMNA_ID = "ID"
+PRIMER_ID = 1
 
 
 def generar(run_validacion):
@@ -61,12 +63,14 @@ def generar(run_validacion):
     CARPETA.mkdir(parents=True, exist_ok=True)
     nombre = f"{datetime.now():%Y%m%d-%H%M%S}-{tipo}"
     archivo = CARPETA / f"{nombre}.csv"
+    # `test` conserva el orden del archivo original, que es el que numera Kaggle
+    ids = range(PRIMER_ID, PRIMER_ID + len(test))
     pd.DataFrame({
-        COLUMNA_ID: test["id"],
+        COLUMNA_ID: ids,
         config.TARGET: pd.Series(es_usado).map({True: config.CLASE_POSITIVA, False: "new"}),
     }).to_csv(archivo, index=False)
     # Las probabilidades se guardan aparte, por si después se combinan modelos
-    pd.DataFrame({"id": test["id"], "proba_usado": proba}).to_csv(
+    pd.DataFrame({COLUMNA_ID: ids, "id": test["id"], "proba_usado": proba}).to_csv(
         CARPETA / f"{nombre}_proba.csv", index=False
     )
 
@@ -90,10 +94,11 @@ def main():
     parser.add_argument("--validacion", metavar="RUN_ID")
     parser.add_argument("--anotar", metavar="RUN_ID", help="submission a la que cargarle el puntaje")
     parser.add_argument("--puntaje", type=float)
+    parser.add_argument("--nota", default="")
     args = parser.parse_args()
 
     if args.anotar:
-        registro.anotar_leaderboard(args.anotar, args.puntaje)
+        registro.anotar_leaderboard(args.anotar, args.puntaje, args.nota)
         print(f"Puntaje {args.puntaje} anotado para {args.anotar}")
         return
 
