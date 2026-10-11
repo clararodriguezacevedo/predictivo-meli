@@ -6,6 +6,9 @@
 - Tarea: clasificación binaria de items de MercadoLibre, predecir `condition` (`new` o `used`).
 - Métrica: Accuracy. Leaderboard público con ~70% del test, el privado (30%) define el ranking final.
 - Cierre: 15/11/2026 12:59:59 hora Argentina.
+- Submission: CSV con columnas `ID` y `condition`. `ID` es el número de fila del archivo de
+  test empezando en 1 (no el id de MercadoLibre) y `condition` es `new` o `used`. Formato
+  confirmado con una submission aceptada. Hay 5 envíos por día y 2 cuentan para el final.
 - Datos: `train_data.jsonlines` (70.000 filas, con `condition`) y `test_data.jsonlines` (30.000 filas, sin `condition`).
 
 ## Forma de trabajo
