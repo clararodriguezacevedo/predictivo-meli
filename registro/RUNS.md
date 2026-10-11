@@ -17,9 +17,9 @@ Resumen generado desde `runs.jsonl`, que tiene el detalle completo de cada corri
 
 ## Submissions
 
-| id                                  | modelo   | archivo                                          | validación de origen                |   accuracy de validación | leaderboard público   |
-|:------------------------------------|:---------|:-------------------------------------------------|:------------------------------------|-------------------------:|:----------------------|
-| 20261010-195207-submission-lightgbm | lightgbm | outputs/submissions/20261010-195207-lightgbm.csv | 20261010-195055-validacion-lightgbm |                   0.9429 | sin cargar            |
+| id                                  | modelo   | archivo                                          | validación de origen                |   accuracy de validación |   leaderboard público |
+|:------------------------------------|:---------|:-------------------------------------------------|:------------------------------------|-------------------------:|----------------------:|
+| 20261010-195207-submission-lightgbm | lightgbm | outputs/submissions/20261010-195207-lightgbm.csv | 20261010-195055-validacion-lightgbm |                   0.9429 |               0.94352 |
 
 ## Búsqueda de hiperparámetros
 
