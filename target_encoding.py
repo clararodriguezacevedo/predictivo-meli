@@ -37,24 +37,40 @@ class EncoderDeGrupo:
     confiar. Los grupos sin ninguna fila con etiqueta quedan en nulo.
     """
 
-    def __init__(self, columna, suavizado=2.0):
-        self.columna = columna
+    def __init__(self, *columnas, suavizado=2.0, normalizar=False):
+        # Varias columnas definen el grupo por su combinación (vendedor y categoría).
+        # `normalizar` pasa el texto a minúsculas sin tildes antes de agrupar.
+        self.columnas = list(columnas)
         self.suavizado = suavizado
+        self.normalizar = normalizar
+
+    @property
+    def nombre(self):
+        return "te_" + "_x_".join(self.columnas)
+
+    def _clave(self, df):
+        partes = [df[c].astype("string").fillna("(nulo)") for c in self.columnas]
+        if self.normalizar:
+            partes = [normalizar_texto(parte) for parte in partes]
+        clave = partes[0]
+        for parte in partes[1:]:
+            clave = clave + "|" + parte
+        return clave.to_numpy()
 
     def fit(self, df, y):
         self.tasa_global_ = y.mean()
-        self.stats_ = y.groupby(df[self.columna].to_numpy()).agg(["sum", "count"])
+        self.stats_ = y.groupby(self._clave(df)).agg(["sum", "count"])
         return self
 
     def transform(self, df):
-        stats = self.stats_.reindex(df[self.columna].to_numpy())
+        stats = self.stats_.reindex(self._clave(df))
         n = stats["count"].to_numpy()
         tasa = (stats["sum"].to_numpy() + self.suavizado * self.tasa_global_) / (
             n + self.suavizado
         )
         return pd.DataFrame({
-            f"te_{self.columna}": tasa,
-            f"te_{self.columna}_n": np.nan_to_num(n),
+            self.nombre: tasa,
+            f"{self.nombre}_n": np.nan_to_num(n),
         }, index=df.index)
 
 
@@ -65,37 +81,57 @@ class EncoderDeTexto:
     de la garantía. Resume en un solo número lo que el texto dice sobre la
     condición, que es más de lo que un modelo de árboles puede sacar de miles de
     columnas dispersas.
+
+    Opcionalmente suma dos vistas más:
+
+    - `caracteres`: grupos de 2 a 5 letras del título, que toleran errores de
+      tipeo, plurales y códigos de modelo.
+    - `contexto`: categoría, tipo de publicación, stock y modo de envío como
+      palabras, para que el modelo lineal lea el texto sabiendo qué se vende y cómo.
     """
 
-    def __init__(self, c=3.0):
+    def __init__(self, c=3.0, caracteres=False, contexto=False, nombre="te_texto"):
         self.c = c
+        self.caracteres = caracteres
+        self.contexto = contexto
+        self.nombre = nombre
 
-    @staticmethod
-    def _vectorizador():
-        return TfidfVectorizer(
-            ngram_range=(1, 2), min_df=2, sublinear_tf=True, token_pattern=r"[a-z0-9]+"
-        )
-
-    @staticmethod
-    def _textos(df):
-        return normalizar_texto(df["title"]), normalizar_texto(df["warranty"])
+    def _vistas(self, df):
+        """Lista de (clave, serie de texto, vectorizador nuevo) para cada vista."""
+        def palabras():
+            return TfidfVectorizer(ngram_range=(1, 2), min_df=2, sublinear_tf=True,
+                                   token_pattern=r"[a-z0-9]+")
+        titulo = normalizar_texto(df["title"])
+        vistas = [("titulo", titulo, palabras()),
+                  ("garantia", normalizar_texto(df["warranty"]), palabras())]
+        if self.caracteres:
+            vistas.append(("caracteres", titulo, TfidfVectorizer(
+                analyzer="char_wb", ngram_range=(2, 5), min_df=3, sublinear_tf=True)))
+        if self.contexto:
+            contexto = (
+                "cat_" + df["category_id"].astype(str)
+                + " tipo_" + df["listing_type_id"].astype(str)
+                + " stock_" + df["initial_quantity"].clip(upper=5).astype(str)
+                + " envio_" + df["ship_mode"].astype(str)
+            )
+            vistas.append(("contexto", contexto, TfidfVectorizer(token_pattern=r"\S+")))
+        return vistas
 
     def fit(self, df, y):
-        titulo, garantia = self._textos(df)
-        self.vec_titulo_ = self._vectorizador().fit(titulo)
-        self.vec_garantia_ = self._vectorizador().fit(garantia)
+        vistas = self._vistas(df)
+        self.vectorizadores_ = {clave: vec.fit(texto) for clave, texto, vec in vistas}
         self.modelo_ = LogisticRegression(C=self.c, solver="liblinear")
-        self.modelo_.fit(self._matriz(titulo, garantia), y)
+        self.modelo_.fit(self._matriz(df), y)
         return self
 
-    def _matriz(self, titulo, garantia):
-        return sp.hstack(
-            [self.vec_titulo_.transform(titulo), self.vec_garantia_.transform(garantia)]
-        ).tocsr()
+    def _matriz(self, df):
+        return sp.hstack([
+            self.vectorizadores_[clave].transform(texto) for clave, texto, _ in self._vistas(df)
+        ]).tocsr()
 
     def transform(self, df):
-        proba = self.modelo_.predict_proba(self._matriz(*self._textos(df)))[:, 1]
-        return pd.DataFrame({"te_texto": proba}, index=df.index)
+        proba = self.modelo_.predict_proba(self._matriz(df))[:, 1]
+        return pd.DataFrame({self.nombre: proba}, index=df.index)
 
 
 class EncoderDeVecinos:
@@ -164,6 +200,72 @@ class EncoderDeVecinos:
         }, index=df.index)
 
 
+class EncoderVecinosDelVendedor:
+    """Etiquetas de los items del mismo vendedor que más se parecen a cada item.
+
+    La tasa de usados del vendedor trata igual a todas sus publicaciones. Pero un
+    vendedor mixto (por ejemplo, una librería que vende libros nuevos y usados)
+    suele publicar parecido los items de la misma condición. Para cada fila se
+    miran los items con etiqueta de su vendedor y se devuelve la etiqueta del de
+    título más parecido, la del publicado más cerca en el tiempo y la tasa entre
+    los de precio parecido o mismo tipo de publicación y stock.
+    """
+
+    # Diferencia máxima de log del precio para considerar dos precios parecidos
+    PRECIO_PARECIDO = 0.2
+
+    @staticmethod
+    def _tabla(df):
+        return pd.DataFrame({
+            "seller_id": df["seller_id"].to_numpy(),
+            "log_price": df["log_price"].to_numpy(),
+            "horas": (df["date_created"] - pd.Timestamp("2015-01-01")).dt.total_seconds().to_numpy()
+                     / 3600,
+            "tipo": df["listing_type_id"].astype(str).to_numpy() + df["iq_es_1"].astype(str).to_numpy(),
+            "fila": np.arange(len(df)),
+        })
+
+    def fit(self, df, y):
+        self.vectorizador_ = TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True,
+                                             token_pattern=r"[a-z0-9]+")
+        self.titulos_ = self.vectorizador_.fit_transform(normalizar_texto(df["title"])).tocsr()
+        self.etiquetados_ = self._tabla(df).assign(y=y.to_numpy().astype(float))
+        return self
+
+    def transform(self, df):
+        titulos = self.vectorizador_.transform(normalizar_texto(df["title"])).tocsr()
+        # Un par por cada combinación de fila a codificar e item con etiqueta del mismo vendedor
+        p = self._tabla(df).merge(self.etiquetados_, on="seller_id", suffixes=("", "_e"))
+        p["similitud"] = np.asarray(
+            titulos[p["fila"].to_numpy()].multiply(self.titulos_[p["fila_e"].to_numpy()]).sum(axis=1)
+        ).ravel()
+        p["distancia_horas"] = (p["horas"] - p["horas_e"]).abs()
+        g = p.groupby("fila")
+
+        out = pd.DataFrame(index=np.arange(len(df)))
+        mas_parecido = p.loc[g["similitud"].idxmax()].set_index("fila")
+        out["te_vv_similitud_max"] = mas_parecido["similitud"]
+        out["te_vv_y_mas_parecido"] = mas_parecido["y"]
+        peso = p["similitud"] ** 2 + 1e-3
+        out["te_vv_tasa_ponderada"] = (p["y"] * peso).groupby(p["fila"]).sum() / peso.groupby(p["fila"]).sum()
+        mas_cercano = p[p["distancia_horas"] == g["distancia_horas"].transform("min")].groupby("fila")
+        out["te_vv_y_mas_cercano_en_tiempo"] = mas_cercano["y"].mean()
+        out["te_vv_horas_al_mas_cercano"] = mas_cercano["distancia_horas"].min()
+        precio = p[(p["log_price"] - p["log_price_e"]).abs() < self.PRECIO_PARECIDO].groupby("fila")["y"]
+        out["te_vv_tasa_precio_parecido"] = precio.mean()
+        out["te_vv_n_precio_parecido"] = precio.size()
+        tipo = p[p["tipo"] == p["tipo_e"]].groupby("fila")["y"]
+        out["te_vv_tasa_mismo_tipo_y_stock"] = tipo.mean()
+        out["te_vv_n_mismo_tipo_y_stock"] = tipo.size()
+
+        out = out.reindex(np.arange(len(df)))
+        out[["te_vv_n_precio_parecido", "te_vv_n_mismo_tipo_y_stock"]] = (
+            out[["te_vv_n_precio_parecido", "te_vv_n_mismo_tipo_y_stock"]].fillna(0)
+        )
+        out.index = df.index
+        return out
+
+
 def crear_encoders():
     """Encoders nuevos, sin ajustar. Se crean de nuevo para cada fold."""
     return [
@@ -171,6 +273,12 @@ def crear_encoders():
         EncoderDeGrupo("category_id"),
         EncoderDeTexto(),
         EncoderDeVecinos(k=30),
+        # Dentro del vendedor: separa sus publicaciones por tipo, stock, garantía y título
+        EncoderDeGrupo("seller_id", "listing_type_id"),
+        EncoderDeGrupo("seller_id", "iq_es_1"),
+        EncoderDeGrupo("seller_id", "tiene_warranty"),
+        EncoderDeGrupo("seller_id", "title", normalizar=True),
+        EncoderVecinosDelVendedor(),
     ]
 
 
