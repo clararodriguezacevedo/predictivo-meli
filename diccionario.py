@@ -324,6 +324,21 @@ VARIABLES = [
              "Hora de creación en horario argentino (UTC-3)."),
     Variable("dia_semana", "Features derivadas del item", DERIVADA,
              "Día de la semana de creación en horario argentino (0 = lunes)."),
+    Variable("duracion_resto_seg", "Features derivadas del item", DERIVADA,
+             "Segundos que sobran de la duración (`stop_time - start_time`) después de "
+             "contar los días enteros. El 96% de las publicaciones dura un número exacto de "
+             "días (resto 0). Con un resto de 1 a 60 segundos el 98% son usadas (99.7% en "
+             "las bronze). No se sabe qué proceso de MercadoLibre genera ese desfasaje."),
+    Variable("dias_update_a_fin", "Features derivadas del item", DERIVADA,
+             "Días entre `last_updated` y `stop_time`. Las publicaciones editadas cerca de "
+             "su vencimiento tienen menos usados (37% contra 57%)."),
+    Variable("seg_creacion_a_inicio", "Features derivadas del item", DERIVADA,
+             "Segundos entre `date_created` y `start_time`. Casi siempre es 0; cuando la "
+             "publicación arranca después de creada hay más usados."),
+    Variable("dia_creacion", "Features derivadas del item", DERIVADA,
+             "Días desde el 1 de enero de 2015 hasta la creación."),
+    Variable("hora_update", "Features derivadas del item", DERIVADA,
+             "Hora de la última actualización en horario argentino (UTC-3)."),
     Variable("title_len", "Features derivadas del item", DERIVADA,
              "Largo del título en caracteres."),
     Variable("title_n_digitos", "Features derivadas del item", DERIVADA,
@@ -528,6 +543,49 @@ VARIABLES = [
              "Similitud promedio de los vecinos encontrados."),
     Variable("te_vecinos_n", "Target encoding (con folds)", CON_TARGET,
              "Cantidad de vecinos encontrados (hasta 30)."),
+    Variable("te_seller_id_x_listing_type_id", "Target encoding (con folds)", CON_TARGET,
+             "Tasa de usados del vendedor entre sus publicaciones del mismo tipo "
+             "(`listing_type_id`), calculada igual que `te_seller_id`."),
+    Variable("te_seller_id_x_listing_type_id_n", "Target encoding (con folds)", CON_TARGET,
+             "Cantidad de items con etiqueta en los que se apoya la tasa anterior."),
+    Variable("te_seller_id_x_iq_es_1", "Target encoding (con folds)", CON_TARGET,
+             "Tasa de usados del vendedor separando las publicaciones de una sola unidad "
+             "del resto."),
+    Variable("te_seller_id_x_iq_es_1_n", "Target encoding (con folds)", CON_TARGET,
+             "Cantidad de items con etiqueta en los que se apoya la tasa anterior."),
+    Variable("te_seller_id_x_tiene_warranty", "Target encoding (con folds)", CON_TARGET,
+             "Tasa de usados del vendedor separando las publicaciones con y sin garantía."),
+    Variable("te_seller_id_x_tiene_warranty_n", "Target encoding (con folds)", CON_TARGET,
+             "Cantidad de items con etiqueta en los que se apoya la tasa anterior."),
+    Variable("te_seller_id_x_title", "Target encoding (con folds)", CON_TARGET,
+             "Tasa de usados de las publicaciones del vendedor con exactamente el mismo "
+             "título (normalizado). Captura republicaciones del mismo producto."),
+    Variable("te_seller_id_x_title_n", "Target encoding (con folds)", CON_TARGET,
+             "Cantidad de items con etiqueta en los que se apoya la tasa anterior."),
+    Variable("te_vv_similitud_max", "Target encoding (con folds)", CON_TARGET,
+             "Similitud de título (coseno sobre TF-IDF) con el item con etiqueta más parecido "
+             "del mismo vendedor. Nulo si el vendedor no tiene items con etiqueta."),
+    Variable("te_vv_y_mas_parecido", "Target encoding (con folds)", CON_TARGET,
+             "Condición (1 = usado) del item con etiqueta del mismo vendedor con el título más "
+             "parecido."),
+    Variable("te_vv_tasa_ponderada", "Target encoding (con folds)", CON_TARGET,
+             "Tasa de usados del vendedor donde cada item pesa según el cuadrado de la "
+             "similitud de su título con el del item."),
+    Variable("te_vv_y_mas_cercano_en_tiempo", "Target encoding (con folds)", CON_TARGET,
+             "Condición del item con etiqueta del mismo vendedor publicado más cerca en el "
+             "tiempo (promedio si hay empate)."),
+    Variable("te_vv_horas_al_mas_cercano", "Target encoding (con folds)", CON_TARGET,
+             "Horas entre el item y esa publicación más cercana del vendedor."),
+    Variable("te_vv_tasa_precio_parecido", "Target encoding (con folds)", CON_TARGET,
+             "Tasa de usados entre los items del vendedor con precio parecido (diferencia de "
+             "log del precio menor a 0.2)."),
+    Variable("te_vv_n_precio_parecido", "Target encoding (con folds)", CON_TARGET,
+             "Cantidad de items con etiqueta del vendedor con precio parecido."),
+    Variable("te_vv_tasa_mismo_tipo_y_stock", "Target encoding (con folds)", CON_TARGET,
+             "Tasa de usados entre los items del vendedor con el mismo tipo de publicación y "
+             "la misma condición de stock (una unidad o más)."),
+    Variable("te_vv_n_mismo_tipo_y_stock", "Target encoding (con folds)", CON_TARGET,
+             "Cantidad de items con etiqueta en los que se apoya la tasa anterior."),
 
     # Descartados
     Variable("site_id", "Campos descartados", DESCARTADA,

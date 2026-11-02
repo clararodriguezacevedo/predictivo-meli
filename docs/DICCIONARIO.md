@@ -213,6 +213,11 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `duracion_dias` | feature | numérica | 0.0% | 275 | 0 / 60 / 3457 | Días entre `start_time` y `stop_time`: la vigencia programada. |
 | `hora_creacion` | feature | numérica | 0.0% | 24 | 0 / 14 / 23 | Hora de creación en horario argentino (UTC-3). |
 | `dia_semana` | feature | numérica | 0.0% | 7 | `1`, `0`, `2` | Día de la semana de creación en horario argentino (0 = lunes). |
+| `duracion_resto_seg` | feature | numérica | 0.0% | 2,507 | 0 / 0 / 8.64e+04 | Segundos que sobran de la duración (`stop_time - start_time`) después de contar los días enteros. El 96% de las publicaciones dura un número exacto de días (resto 0). Con un resto de 1 a 60 segundos el 98% son usadas (99.7% en las bronze). No se sabe qué proceso de MercadoLibre genera ese desfasaje. |
+| `dias_update_a_fin` | feature | numérica | 0.0% | 33,776 | -0.0002662 / 60 / 3457 | Días entre `last_updated` y `stop_time`. Las publicaciones editadas cerca de su vencimiento tienen menos usados (37% contra 57%). |
+| `seg_creacion_a_inicio` | feature | numérica | 0.0% | 426 | -7 / 0 / 2.994e+06 | Segundos entre `date_created` y `start_time`. Casi siempre es 0; cuando la publicación arranca después de creada hay más usados. |
+| `dia_creacion` | feature | numérica | 0.0% | 304 | -590 / 259 / 287 | Días desde el 1 de enero de 2015 hasta la creación. |
+| `hora_update` | feature | numérica | 0.0% | 24 | 0 / 14 / 23 | Hora de la última actualización en horario argentino (UTC-3). |
 | `title_len` | feature | numérica | 0.0% | 94 | 1 / 48 / 100 | Largo del título en caracteres. |
 | `title_n_digitos` | feature | numérica | 0.0% | 37 | 0 / 0 / 42 | Cantidad de dígitos en el título. Los comercios incluyen modelos, medidas y códigos. |
 | `titulo_repetido` | feature | numérica | 0.0% | 18 | 1 / 1 / 78 | Cantidad de publicaciones (train + test) con exactamente el mismo título normalizado, contando la propia. |
@@ -336,6 +341,23 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `te_vecinos_similitud_max` | con target |  |  |  |  | Similitud del título más parecido (0 a 1). Cerca de 1 indica que existe una publicación casi idéntica con etiqueta. |
 | `te_vecinos_similitud_media` | con target |  |  |  |  | Similitud promedio de los vecinos encontrados. |
 | `te_vecinos_n` | con target |  |  |  |  | Cantidad de vecinos encontrados (hasta 30). |
+| `te_seller_id_x_listing_type_id` | con target |  |  |  |  | Tasa de usados del vendedor entre sus publicaciones del mismo tipo (`listing_type_id`), calculada igual que `te_seller_id`. |
+| `te_seller_id_x_listing_type_id_n` | con target |  |  |  |  | Cantidad de items con etiqueta en los que se apoya la tasa anterior. |
+| `te_seller_id_x_iq_es_1` | con target |  |  |  |  | Tasa de usados del vendedor separando las publicaciones de una sola unidad del resto. |
+| `te_seller_id_x_iq_es_1_n` | con target |  |  |  |  | Cantidad de items con etiqueta en los que se apoya la tasa anterior. |
+| `te_seller_id_x_tiene_warranty` | con target |  |  |  |  | Tasa de usados del vendedor separando las publicaciones con y sin garantía. |
+| `te_seller_id_x_tiene_warranty_n` | con target |  |  |  |  | Cantidad de items con etiqueta en los que se apoya la tasa anterior. |
+| `te_seller_id_x_title` | con target |  |  |  |  | Tasa de usados de las publicaciones del vendedor con exactamente el mismo título (normalizado). Captura republicaciones del mismo producto. |
+| `te_seller_id_x_title_n` | con target |  |  |  |  | Cantidad de items con etiqueta en los que se apoya la tasa anterior. |
+| `te_vv_similitud_max` | con target |  |  |  |  | Similitud de título (coseno sobre TF-IDF) con el item con etiqueta más parecido del mismo vendedor. Nulo si el vendedor no tiene items con etiqueta. |
+| `te_vv_y_mas_parecido` | con target |  |  |  |  | Condición (1 = usado) del item con etiqueta del mismo vendedor con el título más parecido. |
+| `te_vv_tasa_ponderada` | con target |  |  |  |  | Tasa de usados del vendedor donde cada item pesa según el cuadrado de la similitud de su título con el del item. |
+| `te_vv_y_mas_cercano_en_tiempo` | con target |  |  |  |  | Condición del item con etiqueta del mismo vendedor publicado más cerca en el tiempo (promedio si hay empate). |
+| `te_vv_horas_al_mas_cercano` | con target |  |  |  |  | Horas entre el item y esa publicación más cercana del vendedor. |
+| `te_vv_tasa_precio_parecido` | con target |  |  |  |  | Tasa de usados entre los items del vendedor con precio parecido (diferencia de log del precio menor a 0.2). |
+| `te_vv_n_precio_parecido` | con target |  |  |  |  | Cantidad de items con etiqueta del vendedor con precio parecido. |
+| `te_vv_tasa_mismo_tipo_y_stock` | con target |  |  |  |  | Tasa de usados entre los items del vendedor con el mismo tipo de publicación y la misma condición de stock (una unidad o más). |
+| `te_vv_n_mismo_tipo_y_stock` | con target |  |  |  |  | Cantidad de items con etiqueta en los que se apoya la tasa anterior. |
 
 ## Campos descartados
 

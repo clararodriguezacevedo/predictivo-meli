@@ -97,10 +97,17 @@ def agregar_features_item(df):
         (df["last_updated"] - df["date_created"]).dt.total_seconds() / 86400
     )
     df["duracion_dias"] = (df["stop_time"] - df["start_time"]).dt.days
+    # Casi todas las publicaciones duran un número exacto de días. Un desfasaje de unos
+    # segundos en el vencimiento aparece casi solo en publicaciones de usados
+    df["duracion_resto_seg"] = (df["stop_time"] - df["start_time"]).dt.total_seconds() % 86400
+    df["dias_update_a_fin"] = (df["stop_time"] - df["last_updated"]).dt.total_seconds() / 86400
+    df["seg_creacion_a_inicio"] = (df["start_time"] - df["date_created"]).dt.total_seconds()
+    df["dia_creacion"] = (df["date_created"] - pd.Timestamp(f"{ANIO_DATOS}-01-01")).dt.days
     # Las fechas vienen en UTC, se pasan a hora argentina (UTC-3)
     creacion_ar = df["date_created"] - pd.Timedelta(hours=3)
     df["hora_creacion"] = creacion_ar.dt.hour
     df["dia_semana"] = creacion_ar.dt.dayofweek
+    df["hora_update"] = (df["last_updated"] - pd.Timedelta(hours=3)).dt.hour
 
     # Texto
     df["title_len"] = df["title"].str.len()
