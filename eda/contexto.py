@@ -164,7 +164,7 @@ usados por vendedor) y la detectó por los tres caminos.
 """)
     rep.seccion("Features que sí usan el target", nivel=3)
     rep.texto("""
-La tasa de usados por vendedor, por categoría y un modelo de texto supervisado son
+La tasa de usados por vendedor y por categoría y los vecinos por título son
 muy informativos, pero usan `condition`. Viven aparte, en `target_encoding.py`, y
 se calculan con folds anidados:
 

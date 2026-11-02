@@ -35,7 +35,6 @@ BASE = "20261010-195055-validacion-lightgbm"
 ENCODERS = {
     "Target encoding: vendedor": "te_seller_id",
     "Target encoding: categoría": "te_category_id",
-    "Target encoding: modelo de texto": "te_texto",
     "Target encoding: vecinos por título": "te_vecinos",
 }
 

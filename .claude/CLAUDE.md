@@ -32,10 +32,9 @@
 - `evaluacion.py`: preparación de la matriz de features. `run_evaluar_features.py` es la
   ablación: cuánto pierde el modelo completo al quitar cada grupo de features o encoder.
 - `target_encoding.py`: features que usan el target (tasa de usados por vendedor y
-  categoría, modelo de texto, vecinos), calculadas con folds anidados. `clasificadores.py`:
+  categoría, vecinos), calculadas con folds anidados. `clasificadores.py`:
   LightGBM, HistGradientBoosting, CatBoost, XGBoost y su promedio. `modelo.py`: une features,
-  target encoding y clasificador. `pseudo_etiquetas.py`: suma al entrenamiento las
-  predicciones seguras de items sin etiqueta.
+  target encoding y clasificador.
 - `errores.py` y `run_analizar_errores.py`: reporte de en qué items falla el modelo.
 - `registro.py`: registro de corridas (ver sección propia).
 - `run_verificar_leakage.py`: cinco controles de leakage sobre features, target encoding

@@ -21,7 +21,6 @@ import config
 import evaluacion
 import features
 import modelo
-import pseudo_etiquetas
 import registro
 import target_encoding
 from carga import cargar_train_test
@@ -42,32 +41,15 @@ def generar(run_validacion):
             f"La corrida {run_validacion['id']} se validó con otra configuración de target "
             "encoding que la actual. Validar de nuevo con run_validar_modelo.py."
         )
-    pseudo = run_validacion.get("pseudo_etiquetas", {"activo": False})
-    if pseudo["activo"] and (pseudo["umbral"], pseudo["n_partes"]) != (
-            pseudo_etiquetas.UMBRAL, pseudo_etiquetas.N_PARTES):
-        raise SystemExit(
-            f"La corrida {run_validacion['id']} se validó con otra configuración de "
-            "pseudo-etiquetado que la actual."
-        )
     semilla = config.SEED
     inicio = time.time()
 
     train, test = features.construir(*cargar_train_test())
     y = evaluacion.y_binario(train)
     X_base_train, X_base_test = modelo.preparar_juntos(train, test)
-    if pseudo["activo"]:
-        # El pool sin etiquetas es el propio test
-        proba = pseudo_etiquetas.predecir(
-            X_base_train, train, y, X_base_test, test, tipo, parametros, semilla
-        )
-        columnas = None
-    else:
-        X_train, X_test = modelo.armar_matrices(
-            X_base_train, train, y, X_base_test, test, semilla
-        )
-        clasificador = modelo.crear_clasificador(tipo, parametros, semilla).fit(X_train, y)
-        proba = clasificador.predict_proba(X_test)[:, 1]
-        columnas = X_train.columns
+    X_train, X_test = modelo.armar_matrices(X_base_train, train, y, X_base_test, test, semilla)
+    clasificador = modelo.crear_clasificador(tipo, parametros, semilla).fit(X_train, y)
+    proba = clasificador.predict_proba(X_test)[:, 1]
     es_usado = proba > 0.5
 
     # El archivo se escribe antes de registrar, así el registro guarda su ruta real
@@ -90,9 +72,7 @@ def generar(run_validacion):
         run_validacion=run_validacion["id"],
         accuracy_validacion=run_validacion["accuracy"],
         target_encoding=run_validacion["target_encoding"],
-        pseudo_etiquetas=pseudo,
-        features=(registro.describir_features(columnas) if columnas is not None
-                  else run_validacion["features"]),
+        features=registro.describir_features(X_train.columns),
         semilla=semilla,
         archivo=archivo.relative_to(config.RAIZ).as_posix(),
         filas=len(test),

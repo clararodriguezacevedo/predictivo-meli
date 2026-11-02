@@ -124,7 +124,7 @@ def predecir_en_folds(folds, tipo, parametros):
 def preparar_juntos(train, test):
     """Matrices de features sin target de train y test, con los mismos niveles en las categóricas.
 
-    Hace falta cuando se mezclan filas de los dos (pseudo-etiquetado) o se predice el test.
+    Hace falta para predecir el test.
     """
     niveles = {
         c: sorted(set(train[c].dropna()) | set(test[c].dropna())) for c in evaluacion.CATEGORICAS

@@ -17,9 +17,7 @@ depende (al revés) de su propia etiqueta, y un modelo de árboles puede deducir
 
 import numpy as np
 import pandas as pd
-import scipy.sparse as sp
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import KFold
 
 import config
@@ -72,44 +70,6 @@ class EncoderDeGrupo:
             self.nombre: tasa,
             f"{self.nombre}_n": np.nan_to_num(n),
         }, index=df.index)
-
-
-class EncoderDeTexto:
-    """Probabilidad de usado según un modelo lineal sobre el texto.
-
-    Regresión logística sobre TF-IDF de palabras y pares de palabras del título y
-    de la garantía. Resume en un solo número lo que el texto dice sobre la
-    condición, que es más de lo que un modelo de árboles puede sacar de miles de
-    columnas dispersas.
-    """
-
-    def __init__(self, c=3.0):
-        self.c = c
-
-    def _vistas(self, df):
-        """Lista de (clave, serie de texto, vectorizador nuevo) para cada vista."""
-        def palabras():
-            return TfidfVectorizer(ngram_range=(1, 2), min_df=2, sublinear_tf=True,
-                                   token_pattern=r"[a-z0-9]+")
-        titulo = normalizar_texto(df["title"])
-        return [("titulo", titulo, palabras()),
-                ("garantia", normalizar_texto(df["warranty"]), palabras())]
-
-    def fit(self, df, y):
-        vistas = self._vistas(df)
-        self.vectorizadores_ = {clave: vec.fit(texto) for clave, texto, vec in vistas}
-        self.modelo_ = LogisticRegression(C=self.c, solver="liblinear")
-        self.modelo_.fit(self._matriz(df), y)
-        return self
-
-    def _matriz(self, df):
-        return sp.hstack([
-            self.vectorizadores_[clave].transform(texto) for clave, texto, _ in self._vistas(df)
-        ]).tocsr()
-
-    def transform(self, df):
-        proba = self.modelo_.predict_proba(self._matriz(df))[:, 1]
-        return pd.DataFrame({"te_texto": proba}, index=df.index)
 
 
 class EncoderDeVecinos:
@@ -249,7 +209,6 @@ def crear_encoders():
     return [
         EncoderDeGrupo("seller_id"),
         EncoderDeGrupo("category_id"),
-        EncoderDeTexto(),
         EncoderDeVecinos(k=30),
         # Dentro del vendedor: separa sus publicaciones por tipo, stock, garantía y título
         EncoderDeGrupo("seller_id", "listing_type_id"),

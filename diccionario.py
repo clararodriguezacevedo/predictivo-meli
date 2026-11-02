@@ -526,10 +526,6 @@ VARIABLES = [
     Variable("te_category_id_n", "Target encoding (con folds)", CON_TARGET,
              "Cantidad de items con etiqueta de la categoría en los que se apoya "
              "`te_category_id`."),
-    Variable("te_texto", "Target encoding (con folds)", CON_TARGET,
-             "Probabilidad de usado según una regresión logística sobre las palabras y "
-             "pares de palabras del título y de la garantía (TF-IDF). El modelo de texto se "
-             "entrena solo con etiquetas de otras filas, con el mismo esquema de folds."),
     Variable("te_vecinos_tasa", "Target encoding (con folds)", CON_TARGET,
              "Tasa de usados entre los 30 títulos más parecidos (similitud coseno sobre "
              "TF-IDF) de las filas con etiqueta. Mismo esquema de folds que el resto. Nulo "

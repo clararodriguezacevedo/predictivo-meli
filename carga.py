@@ -13,7 +13,9 @@ import pandas as pd
 
 import config
 
-# Columnas que en el train son constantes o 100% nulas: no aportan nada
+# Las primeras seis son constantes o vacías en train y test. Las URL tienen un valor
+# distinto por fila, pero repiten el título y la primera foto; el subdominio del
+# permalink se probó como variable y no aportó
 COLUMNAS_DESCARTADAS = [
     "site_id", "listing_source", "international_delivery_mode", "coverage_areas",
     "differential_pricing", "subtitle", "permalink", "thumbnail", "secure_thumbnail",

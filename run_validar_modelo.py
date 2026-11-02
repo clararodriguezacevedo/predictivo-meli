@@ -15,7 +15,6 @@ import argparse
 import evaluacion
 import features
 import modelo
-import pseudo_etiquetas
 import registro
 from carga import cargar_train_test
 
@@ -27,8 +26,6 @@ def main():
                         help="usar el modelo y los hiperparámetros de una corrida registrada")
     parser.add_argument("--ensamble-de", metavar="RUN_ID", nargs="+",
                         help="promediar los modelos de estas corridas registradas")
-    parser.add_argument("--con-pseudo-etiquetas", action="store_true",
-                        help="sumar al entrenamiento predicciones seguras de items sin etiqueta")
     parser.add_argument("--nota", default="")
     args = parser.parse_args()
 
@@ -45,13 +42,8 @@ def main():
         parametros = {o["modelo"]: o["parametros"] for o in origenes}
         nota = nota or "promedio de " + " y ".join(o["id"] for o in origenes)
 
-    train, test = features.construir(*cargar_train_test())
+    train, _ = features.construir(*cargar_train_test())
     y = evaluacion.y_binario(train)
-    if args.con_pseudo_etiquetas:
-        parametros = parametros or modelo.PARAMETROS_POR_DEFECTO[tipo]
-        accuracy, error = pseudo_etiquetas.validar(train, y, test, tipo, parametros, nota=nota)
-        print(f"{tipo} con pseudo-etiquetas: accuracy {accuracy:.4f} (error estándar {error:.4f})")
-        return
     accuracy, error = modelo.validar(train, y, tipo, parametros, nota=nota)
     print(f"{tipo}: accuracy {accuracy:.4f} (error estándar {error:.4f})")
 

@@ -335,7 +335,6 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `te_seller_id_n` | con target |  |  |  |  | Cantidad de items con etiqueta del vendedor en los que se apoya `te_seller_id`. Le dice al modelo cuánto confiar en esa tasa. |
 | `te_category_id` | con target |  |  |  |  | Tasa de usados de la categoría, calculada igual que `te_seller_id`. |
 | `te_category_id_n` | con target |  |  |  |  | Cantidad de items con etiqueta de la categoría en los que se apoya `te_category_id`. |
-| `te_texto` | con target |  |  |  |  | Probabilidad de usado según una regresión logística sobre las palabras y pares de palabras del título y de la garantía (TF-IDF). El modelo de texto se entrena solo con etiquetas de otras filas, con el mismo esquema de folds. |
 | `te_vecinos_tasa` | con target |  |  |  |  | Tasa de usados entre los 30 títulos más parecidos (similitud coseno sobre TF-IDF) de las filas con etiqueta. Mismo esquema de folds que el resto. Nulo si ningún título comparte palabras con el del item. |
 | `te_vecinos_tasa_ponderada` | con target |  |  |  |  | Igual que `te_vecinos_tasa`, pero cada vecino pesa según su similitud. |
 | `te_vecinos_similitud_max` | con target |  |  |  |  | Similitud del título más parecido (0 a 1). Cerca de 1 indica que existe una publicación casi idéntica con etiqueta. |

@@ -18,7 +18,7 @@ def calidad_datos(ctx):
     rep.texto(f"""
 Train tiene {len(tr):,} filas y test {len(te):,}. Después de aplanar el JSON y
 agregar features derivadas quedan {te.shape[1]} columnas. Se descartaron por ser
-constantes o 100% nulas en train: {", ".join(f"`{c}`" for c in COLUMNAS_DESCARTADAS)}.
+constantes o vacías, o por repetir el título y la primera foto (las URL): {", ".join(f"`{c}`" for c in COLUMNAS_DESCARTADAS)}.
 """)
     columnas = [c for c in tr.columns if c not in (config.TARGET, "y")]
     nulos = pd.DataFrame({
