@@ -29,8 +29,8 @@
 - `diccionario.py`: significado de cada variable. `run_diccionario.py` genera
   `docs/DICCIONARIO.md` y avisa si hay columnas sin documentar. Toda variable o feature
   nueva se agrega ahí.
-- `evaluacion.py`: validación cruzada rápida con LightGBM. `run_evaluar_features.py` mide
-  el accuracy y cuánto aporta cada grupo de features.
+- `evaluacion.py`: preparación de la matriz de features. `run_evaluar_features.py` es la
+  ablación: cuánto pierde el modelo completo al quitar cada grupo de features o encoder.
 - `target_encoding.py`: features que usan el target (tasa de usados por vendedor y
   categoría, modelo de texto), calculadas con folds anidados. `modelo.py`: une features,
   target encoding y el clasificador (LightGBM o XGBoost).
@@ -48,8 +48,10 @@
 - `runs.jsonl` no se edita ni se reescribe, solo se agregan líneas. `registro/RUNS.md` es
   el resumen legible y se regenera solo. Los dos se versionan.
 - Tipos: `validacion` (protocolo estándar de 5 folds y 2 semillas, comparables entre sí),
-  `busqueda` (protocolo liviano de `run_optimizar.py`, no comparable con las anteriores) y
-  `submission` (siempre atada a una corrida de validación).
+  `busqueda` (protocolo liviano de `run_optimizar.py`, no comparable con las anteriores),
+  `control` (semillas nuevas con `run_evaluar_features.py --semillas`, para confirmar que una
+  mejora no fue suerte de los folds estándar) y `submission` (siempre atada a una corrida de
+  validación).
 - Scripts: `run_validar_modelo.py`, `run_optimizar.py`, `run_submission.py`. Después de
   subir una submission a Kaggle, anotar el puntaje con `run_submission.py --anotar`.
 - Para elegir modelo se comparan solo corridas de tipo `validacion`.

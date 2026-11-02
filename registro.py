@@ -13,6 +13,8 @@ Tipos de corrida:
 - busqueda: una prueba de la búsqueda de hiperparámetros, con un protocolo más
   liviano y otras semillas. Sirven para elegir candidatos, no para comparar con
   las de validación.
+- control: mismo esquema que validacion pero con semillas nuevas, que no se usaron
+  para elegir nada. Confirman que una mejora no fue suerte de los folds estándar.
 - submission: entrenamiento con todo train y predicción del test.
 """
 
@@ -87,8 +89,11 @@ def buscar(run_id):
 
 
 def mejor_validacion(modelo=None):
-    """La corrida de validación estándar con mayor accuracy (opcionalmente de un modelo)."""
-    candidatas = [r for r in leer() if r["tipo"] == "validacion"
+    """La corrida de validación estándar con mayor accuracy (opcionalmente de un modelo).
+
+    Ignora las ablaciones: les falta un grupo de features y no sirven para una submission.
+    """
+    candidatas = [r for r in leer() if r["tipo"] == "validacion" and "ablacion" not in r
                   and (modelo is None or r["modelo"] == modelo)]
     if not candidatas:
         raise LookupError("Todavía no hay corridas de validación registradas")
@@ -104,6 +109,9 @@ def anotar_leaderboard(run_id, puntaje, nota=""):
 
 
 def _parametros_cortos(parametros):
+    if parametros and all(isinstance(v, dict) for v in parametros.values()):
+        # Ensamble: un diccionario de hiperparámetros por modelo
+        return "; ".join(f"{m}: {_parametros_cortos(p)}" for m, p in parametros.items())
     return ", ".join(
         f"{k}={v:.4g}" if isinstance(v, float) else f"{k}={v}" for k, v in parametros.items()
     )
@@ -133,11 +141,23 @@ def generar_resumen():
     lineas += _tabla([{
         "id": r["id"], "modelo": r["modelo"], "accuracy": f"{r['accuracy']:.4f}",
         "error estándar": f"{r['error_estandar']:.4f}",
-        "target encoding": "sí" if r["target_encoding"]["activo"] else "no",
+        "target encoding": (f"{len(r['target_encoding']['encoders'])} encoders"
+                            if r["target_encoding"]["activo"] else "no"),
+        "consenso": "sí" if r.get("consenso", {}).get("activo") else "no",
+        "pseudo-etiquetas": "sí" if r.get("pseudo_etiquetas", {}).get("activo") else "no",
         "features": r["features"]["n"], "nota": r.get("nota", ""),
         "parámetros": _parametros_cortos(r["parametros"]),
     } for r in validaciones], ["id", "modelo", "accuracy", "error estándar", "target encoding",
-                               "features", "nota", "parámetros"])
+                               "consenso", "pseudo-etiquetas", "features", "nota", "parámetros"])
+
+    lineas += ["## Controles con folds nuevos", "",
+               "Semillas que no se usaron para elegir nada. Se comparan solo entre sí.", ""]
+    lineas += _tabla([{
+        "id": r["id"], "semillas": r["protocolo"]["semillas"],
+        "accuracy": f"{r['accuracy']:.4f}", "error estándar": f"{r['error_estandar']:.4f}",
+        "nota": r.get("nota", ""),
+    } for r in runs if r["tipo"] == "control"],
+        ["id", "semillas", "accuracy", "error estándar", "nota"])
 
     lineas += ["## Submissions", ""]
     lineas += _tabla([{
