@@ -7,7 +7,6 @@ Uso:
     python run_validar_modelo.py --modelo lightgbm
     python run_validar_modelo.py --modelo xgboost --nota "primera prueba"
     python run_validar_modelo.py --parametros-de <id de una corrida del registro>
-    python run_validar_modelo.py --modelo lightgbm --sin-target-encoding
     python run_validar_modelo.py --ensamble-de <id lightgbm> <id xgboost>
 """
 
@@ -28,9 +27,6 @@ def main():
                         help="usar el modelo y los hiperparámetros de una corrida registrada")
     parser.add_argument("--ensamble-de", metavar="RUN_ID", nargs="+",
                         help="promediar los modelos de estas corridas registradas")
-    parser.add_argument("--sin-target-encoding", action="store_true")
-    parser.add_argument("--con-consenso", action="store_true",
-                        help="agregar el consenso del vendedor en dos etapas")
     parser.add_argument("--con-pseudo-etiquetas", action="store_true",
                         help="sumar al entrenamiento predicciones seguras de items sin etiqueta")
     parser.add_argument("--nota", default="")
@@ -56,10 +52,7 @@ def main():
         accuracy, error = pseudo_etiquetas.validar(train, y, test, tipo, parametros, nota=nota)
         print(f"{tipo} con pseudo-etiquetas: accuracy {accuracy:.4f} (error estándar {error:.4f})")
         return
-    accuracy, error = modelo.validar(
-        train, y, tipo, parametros, usar_target_encoding=not args.sin_target_encoding, nota=nota,
-        usar_consenso=args.con_consenso,
-    )
+    accuracy, error = modelo.validar(train, y, tipo, parametros, nota=nota)
     print(f"{tipo}: accuracy {accuracy:.4f} (error estándar {error:.4f})")
 
 

@@ -38,7 +38,7 @@ def calcular_predicciones(train, y):
         "analisis", mejor["modelo"], mejor["parametros"], accuracy=accuracy,
         nota=f"predicciones de validación para análisis de errores, parámetros de {mejor['id']}",
         duracion_seg=round(time.time() - inicio),
-        **modelo.descripcion_comun(folds, PROTOCOLO, usar_target_encoding=True),
+        **modelo.descripcion_comun(folds, PROTOCOLO),
     )
     CARPETA.mkdir(parents=True, exist_ok=True)
     pred.to_parquet(PREDICCIONES)

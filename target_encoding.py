@@ -81,20 +81,10 @@ class EncoderDeTexto:
     de la garantía. Resume en un solo número lo que el texto dice sobre la
     condición, que es más de lo que un modelo de árboles puede sacar de miles de
     columnas dispersas.
-
-    Opcionalmente suma dos vistas más:
-
-    - `caracteres`: grupos de 2 a 5 letras del título, que toleran errores de
-      tipeo, plurales y códigos de modelo.
-    - `contexto`: categoría, tipo de publicación, stock y modo de envío como
-      palabras, para que el modelo lineal lea el texto sabiendo qué se vende y cómo.
     """
 
-    def __init__(self, c=3.0, caracteres=False, contexto=False, nombre="te_texto"):
+    def __init__(self, c=3.0):
         self.c = c
-        self.caracteres = caracteres
-        self.contexto = contexto
-        self.nombre = nombre
 
     def _vistas(self, df):
         """Lista de (clave, serie de texto, vectorizador nuevo) para cada vista."""
@@ -102,20 +92,8 @@ class EncoderDeTexto:
             return TfidfVectorizer(ngram_range=(1, 2), min_df=2, sublinear_tf=True,
                                    token_pattern=r"[a-z0-9]+")
         titulo = normalizar_texto(df["title"])
-        vistas = [("titulo", titulo, palabras()),
-                  ("garantia", normalizar_texto(df["warranty"]), palabras())]
-        if self.caracteres:
-            vistas.append(("caracteres", titulo, TfidfVectorizer(
-                analyzer="char_wb", ngram_range=(2, 5), min_df=3, sublinear_tf=True)))
-        if self.contexto:
-            contexto = (
-                "cat_" + df["category_id"].astype(str)
-                + " tipo_" + df["listing_type_id"].astype(str)
-                + " stock_" + df["initial_quantity"].clip(upper=5).astype(str)
-                + " envio_" + df["ship_mode"].astype(str)
-            )
-            vistas.append(("contexto", contexto, TfidfVectorizer(token_pattern=r"\S+")))
-        return vistas
+        return [("titulo", titulo, palabras()),
+                ("garantia", normalizar_texto(df["warranty"]), palabras())]
 
     def fit(self, df, y):
         vistas = self._vistas(df)
@@ -131,7 +109,7 @@ class EncoderDeTexto:
 
     def transform(self, df):
         proba = self.modelo_.predict_proba(self._matriz(df))[:, 1]
-        return pd.DataFrame({self.nombre: proba}, index=df.index)
+        return pd.DataFrame({"te_texto": proba}, index=df.index)
 
 
 class EncoderDeVecinos:
@@ -308,10 +286,8 @@ def codificar(train, y, a_predecir, semilla=config.SEED):
     return te_train, te_prediccion
 
 
-def descripcion(activo=True):
+def descripcion():
     """Configuración del target encoding, para dejarla anotada en el registro."""
-    if not activo:
-        return {"activo": False}
     return {
         "activo": True,
         "n_subfolds": N_SUBFOLDS,

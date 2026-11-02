@@ -36,14 +36,12 @@ PRIMER_ID = 1
 
 def generar(run_validacion):
     tipo, parametros = run_validacion["modelo"], run_validacion["parametros"]
-    usar_te = run_validacion["target_encoding"]["activo"]
     # La submission tiene que usar exactamente la configuración que se validó
-    if run_validacion["target_encoding"] != target_encoding.descripcion(usar_te):
+    if run_validacion["target_encoding"] != target_encoding.descripcion():
         raise SystemExit(
             f"La corrida {run_validacion['id']} se validó con otra configuración de target "
             "encoding que la actual. Validar de nuevo con run_validar_modelo.py."
         )
-    usar_consenso = run_validacion.get("consenso", {}).get("activo", False)
     pseudo = run_validacion.get("pseudo_etiquetas", {"activo": False})
     if pseudo["activo"] and (pseudo["umbral"], pseudo["n_partes"]) != (
             pseudo_etiquetas.UMBRAL, pseudo_etiquetas.N_PARTES):
@@ -65,7 +63,7 @@ def generar(run_validacion):
         columnas = None
     else:
         X_train, X_test = modelo.armar_matrices(
-            X_base_train, train, y, X_base_test, test, semilla, usar_te, usar_consenso
+            X_base_train, train, y, X_base_test, test, semilla
         )
         clasificador = modelo.crear_clasificador(tipo, parametros, semilla).fit(X_train, y)
         proba = clasificador.predict_proba(X_test)[:, 1]
@@ -92,7 +90,6 @@ def generar(run_validacion):
         run_validacion=run_validacion["id"],
         accuracy_validacion=run_validacion["accuracy"],
         target_encoding=run_validacion["target_encoding"],
-        consenso=run_validacion.get("consenso", {"activo": False}),
         pseudo_etiquetas=pseudo,
         features=(registro.describir_features(columnas) if columnas is not None
                   else run_validacion["features"]),

@@ -615,6 +615,3 @@ VARIABLES = [
              "Calidad de cada foto. Siempre vacío."),
 ]
 
-
-def por_nombre():
-    return {v.nombre: v for v in VARIABLES}

@@ -67,7 +67,7 @@ def main():
     protocolo = modelo.PROTOCOLO_BUSQUEDA
     # El target encoding no depende de los hiperparámetros: se arma una sola vez
     folds = modelo.armar_folds(train, y, protocolo)
-    comun = modelo.descripcion_comun(folds, protocolo, usar_target_encoding=True)
+    comun = modelo.descripcion_comun(folds, protocolo)
 
     def objetivo(trial):
         parametros = ESPACIOS[args.modelo](trial)

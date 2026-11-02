@@ -10,14 +10,7 @@ import numpy as np
 import pandas as pd
 import xgboost as xgb
 from catboost import CatBoostClassifier
-from sklearn.compose import ColumnTransformer, make_column_selector
-from sklearn.ensemble import (
-    ExtraTreesClassifier, HistGradientBoostingClassifier, RandomForestClassifier,
-)
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import OneHotEncoder, QuantileTransformer
+from sklearn.ensemble import HistGradientBoostingClassifier
 
 HILOS = 8
 
@@ -34,42 +27,11 @@ PARAMETROS_POR_DEFECTO = {
     "hist_gradient_boosting": dict(
         max_iter=600, learning_rate=0.05, max_leaf_nodes=63, max_features=0.5,
     ),
-    "random_forest": dict(n_estimators=500, max_features=0.3, min_samples_leaf=2),
-    "extra_trees": dict(n_estimators=500, max_features=0.5, min_samples_leaf=2),
-    "regresion_logistica": dict(C=1.0, max_iter=3000),
 }
 
 
 def _categoricas(X):
     return [c for c in X.columns if isinstance(X[c].dtype, pd.CategoricalDtype)]
-
-
-class ConCodigos:
-    """Envuelve modelos de árboles de scikit-learn que no aceptan categóricas ni nulos.
-
-    Reemplaza cada categoría por su código entero y los nulos por -1. Un árbol puede
-    separar ese valor del resto, así que "no tiene dato" sigue siendo información.
-    """
-
-    def __init__(self, modelo):
-        self.modelo = modelo
-
-    @staticmethod
-    def _convertir(X):
-        X = X.copy()
-        for col in _categoricas(X):
-            X[col] = X[col].cat.codes
-        return X.astype(float).fillna(-1)
-
-    def fit(self, X, y):
-        self.modelo.fit(self._convertir(X), y)
-        return self
-
-    def predict_proba(self, X):
-        return self.modelo.predict_proba(self._convertir(X))
-
-    def predict(self, X):
-        return self.modelo.predict(self._convertir(X))
 
 
 class ConTextoEnCategoricas:
@@ -119,22 +81,6 @@ class Ensamble:
         return (self.predict_proba(X)[:, 1] > 0.5).astype(int)
 
 
-def _regresion_logistica(parametros, semilla):
-    """Modelo lineal: one-hot para categóricas, imputación y escalado para el resto."""
-    numericas = make_pipeline(
-        SimpleImputer(strategy="median", add_indicator=True),
-        # Lleva cada variable a una distribución normal: las cantidades y precios
-        # tienen colas muy largas y un escalado común no alcanza
-        QuantileTransformer(output_distribution="normal", random_state=semilla),
-    )
-    preprocesado = ColumnTransformer([
-        ("categoricas", OneHotEncoder(handle_unknown="ignore"),
-         make_column_selector(dtype_include="category")),
-        ("numericas", numericas, make_column_selector(dtype_exclude="category")),
-    ])
-    return make_pipeline(preprocesado, LogisticRegression(**parametros, random_state=semilla))
-
-
 def crear_clasificador(tipo, parametros, semilla):
     if tipo == "lightgbm":
         return lgb.LGBMClassifier(**parametros, random_state=semilla, n_jobs=HILOS, verbose=-1)
@@ -156,12 +102,6 @@ def crear_clasificador(tipo, parametros, semilla):
             **parametros, random_state=semilla, categorical_features="from_dtype",
             early_stopping=False,
         )
-    if tipo == "random_forest":
-        return ConCodigos(RandomForestClassifier(**parametros, random_state=semilla, n_jobs=HILOS))
-    if tipo == "extra_trees":
-        return ConCodigos(ExtraTreesClassifier(**parametros, random_state=semilla, n_jobs=HILOS))
-    if tipo == "regresion_logistica":
-        return _regresion_logistica(parametros, semilla)
     if tipo == "ensamble":
         return Ensamble(parametros, semilla)
     raise ValueError(f"Modelo desconocido: {tipo}")

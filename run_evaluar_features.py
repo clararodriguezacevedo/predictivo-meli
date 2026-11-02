@@ -79,7 +79,7 @@ def main():
             tipo, "lightgbm", parametros, accuracy=accuracy, error_estandar=error,
             accuracy_por_fold=aciertos, duracion_seg=round(time.time() - inicio), nota=nota,
             ablacion={"quitado": quitar},
-            **modelo.descripcion_comun(sin, protocolo, usar_target_encoding=True),
+            **modelo.descripcion_comun(sin, protocolo),
         )
         return np.array(aciertos)
 

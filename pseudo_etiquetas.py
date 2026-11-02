@@ -116,8 +116,8 @@ def validar(train, y, test, tipo, parametros, protocolo=None, registrar=True, no
         registro.registrar(
             "validacion", tipo, parametros, accuracy=accuracy, error_estandar=error,
             accuracy_por_fold=aciertos, duracion_seg=round(time.time() - inicio), nota=nota,
-            protocolo=protocolo, target_encoding=target_encoding.descripcion(True),
-            consenso={"activo": False}, features=registro.describir_features(columnas),
+            protocolo=protocolo, target_encoding=target_encoding.descripcion(),
+            features=registro.describir_features(columnas),
             pseudo_etiquetas=descripcion(True, FILAS_DE_TEST_EN_VALIDACION),
         )
     return accuracy, error
