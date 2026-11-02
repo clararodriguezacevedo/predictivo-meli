@@ -8,6 +8,7 @@ y la registra como "validacion".
 Uso:
     python run_optimizar.py --modelo lightgbm --minutos 30
     python run_optimizar.py --modelo xgboost --pruebas 40
+    python run_optimizar.py --modelo catboost --minutos 40
 """
 
 import argparse
@@ -50,7 +51,33 @@ def sugerir_xgboost(trial):
     )
 
 
-ESPACIOS = {"lightgbm": sugerir_lightgbm, "xgboost": sugerir_xgboost}
+def sugerir_hist_gradient_boosting(trial):
+    return dict(
+        max_iter=trial.suggest_int("max_iter", 200, 1200, step=100),
+        learning_rate=trial.suggest_float("learning_rate", 0.01, 0.15, log=True),
+        max_leaf_nodes=trial.suggest_int("max_leaf_nodes", 15, 255, log=True),
+        min_samples_leaf=trial.suggest_int("min_samples_leaf", 5, 100, log=True),
+        max_features=trial.suggest_float("max_features", 0.2, 1.0),
+        l2_regularization=trial.suggest_float("l2_regularization", 1e-3, 30, log=True),
+    )
+
+
+def sugerir_catboost(trial):
+    return dict(
+        iterations=trial.suggest_int("iterations", 500, 1500, step=100),
+        learning_rate=trial.suggest_float("learning_rate", 0.01, 0.15, log=True),
+        depth=trial.suggest_int("depth", 4, 10),
+        l2_leaf_reg=trial.suggest_float("l2_leaf_reg", 1, 30, log=True),
+        rsm=trial.suggest_float("rsm", 0.2, 1.0),
+    )
+
+
+ESPACIOS = {
+    "lightgbm": sugerir_lightgbm,
+    "xgboost": sugerir_xgboost,
+    "hist_gradient_boosting": sugerir_hist_gradient_boosting,
+    "catboost": sugerir_catboost,
+}
 
 
 def main():
