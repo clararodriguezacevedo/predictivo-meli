@@ -1,6 +1,6 @@
 """Modelo completo: features sin target + target encoding con folds + boosting.
 
-Soporta LightGBM y XGBoost. El armado de los datos de cada fold (`armar_folds`) está
+Los clasificadores disponibles están en `clasificadores.py`. El armado de los datos de cada fold (`armar_folds`) está
 separado del entrenamiento (`validar_en_folds`) porque el target encoding es lo más
 caro y no depende de los hiperparámetros: en una búsqueda se arma una sola vez y se
 reutiliza para todas las pruebas.
@@ -12,13 +12,13 @@ mismo camino que la predicción final.
 
 import time
 
-import lightgbm as lgb
 import numpy as np
 import pandas as pd
-import xgboost as xgb
 from sklearn.model_selection import StratifiedKFold
 
+import consenso
 import evaluacion
+from clasificadores import PARAMETROS_POR_DEFECTO, crear_clasificador
 import registro
 import target_encoding
 
@@ -29,31 +29,8 @@ PROTOCOLO_VALIDACION = {"n_folds": 5, "semillas": [0, 1]}
 # no elegir hiperparámetros mirando los mismos folds con los que después se valida
 PROTOCOLO_BUSQUEDA = {"n_folds": 4, "semillas": [100]}
 
-HILOS = 8
-PARAMETROS_POR_DEFECTO = {
-    "lightgbm": dict(
-        n_estimators=400, learning_rate=0.05, num_leaves=63, colsample_bytree=0.5,
-        subsample=0.8, subsample_freq=1,
-    ),
-    "xgboost": dict(
-        n_estimators=400, learning_rate=0.05, max_depth=8, colsample_bytree=0.5,
-        subsample=0.8,
-    ),
-}
-
-
-def crear_clasificador(tipo, parametros, semilla):
-    if tipo == "lightgbm":
-        return lgb.LGBMClassifier(**parametros, random_state=semilla, n_jobs=HILOS, verbose=-1)
-    if tipo == "xgboost":
-        return xgb.XGBClassifier(
-            **parametros, random_state=semilla, n_jobs=HILOS, tree_method="hist",
-            enable_categorical=True,
-        )
-    raise ValueError(f"Modelo desconocido: {tipo}")
-
-
-def armar_matrices(X_train, train, y, X_pred, a_predecir, semilla, usar_target_encoding=True):
+def armar_matrices(X_train, train, y, X_pred, a_predecir, semilla, usar_target_encoding=True,
+                   usar_consenso=False):
     """Devuelve las matrices finales de entrenamiento y de predicción.
 
     `X_train` y `X_pred` son las features sin target ya preparadas
@@ -61,13 +38,20 @@ def armar_matrices(X_train, train, y, X_pred, a_predecir, semilla, usar_target_e
     de donde el target encoding toma vendedor, categoría y texto. Las etiquetas de
     `a_predecir` no intervienen.
     """
-    if not usar_target_encoding:
-        return X_train, X_pred
-    te_train, te_pred = target_encoding.codificar(train, y, a_predecir, semilla)
-    return pd.concat([X_train, te_train], axis=1), pd.concat([X_pred, te_pred], axis=1)
+    extras_train, extras_pred = [], []
+    if usar_consenso:
+        c_train, c_pred = consenso.codificar(X_train, train, y, X_pred, a_predecir, semilla)
+        extras_train.append(c_train)
+        extras_pred.append(c_pred)
+    if usar_target_encoding:
+        te_train, te_pred = target_encoding.codificar(train, y, a_predecir, semilla)
+        extras_train.append(te_train)
+        extras_pred.append(te_pred)
+    return (pd.concat([X_train, *extras_train], axis=1),
+            pd.concat([X_pred, *extras_pred], axis=1))
 
 
-def armar_folds(train, y, protocolo, usar_target_encoding=True):
+def armar_folds(train, y, protocolo, usar_target_encoding=True, usar_consenso=False):
     """Arma los datos de cada fold: lista de (X_train, y_train, X_val, y_val, semilla).
 
     En cada fold, la parte de validación no interviene en ningún cálculo que use
@@ -80,7 +64,7 @@ def armar_folds(train, y, protocolo, usar_target_encoding=True):
         for i_train, i_val in particion.split(X, y):
             X_tr, X_val = armar_matrices(
                 X.iloc[i_train], train.iloc[i_train], y.iloc[i_train],
-                X.iloc[i_val], train.iloc[i_val], semilla, usar_target_encoding,
+                X.iloc[i_val], train.iloc[i_val], semilla, usar_target_encoding, usar_consenso,
             )
             folds.append((X_tr, y.iloc[i_train], X_val, y.iloc[i_val], semilla))
     return folds
@@ -99,31 +83,33 @@ def resumir(aciertos):
     return float(np.mean(aciertos)), float(np.std(aciertos) / np.sqrt(len(aciertos)))
 
 
-def descripcion_comun(folds, protocolo, usar_target_encoding):
+def descripcion_comun(folds, protocolo, usar_target_encoding, usar_consenso=False):
     """Detalles de la corrida que van al registro, además del modelo y sus parámetros."""
     return {
         "protocolo": protocolo,
         "target_encoding": target_encoding.descripcion(usar_target_encoding),
+        "consenso": consenso.descripcion(usar_consenso),
         "features": registro.describir_features(folds[0][0].columns),
     }
 
 
 def validar(train, y, tipo="lightgbm", parametros=None, usar_target_encoding=True,
-            protocolo=PROTOCOLO_VALIDACION, registrar=True, nota=""):
+            protocolo=PROTOCOLO_VALIDACION, registrar=True, nota="", usar_consenso=False):
     """Validación cruzada del modelo completo. Devuelve (accuracy, error estándar).
 
     Con el protocolo estándar la corrida se registra como "validacion".
     """
     parametros = parametros or PARAMETROS_POR_DEFECTO[tipo]
     inicio = time.time()
-    folds = armar_folds(train, y, protocolo, usar_target_encoding)
+    folds = armar_folds(train, y, protocolo, usar_target_encoding, usar_consenso)
     aciertos = validar_en_folds(folds, tipo, parametros)
     accuracy, error = resumir(aciertos)
     if registrar:
         registro.registrar(
             "validacion", tipo, parametros, accuracy=accuracy, error_estandar=error,
             accuracy_por_fold=aciertos, duracion_seg=round(time.time() - inicio),
-            nota=nota, **descripcion_comun(folds, protocolo, usar_target_encoding),
+            nota=nota,
+            **descripcion_comun(folds, protocolo, usar_target_encoding, usar_consenso),
         )
     return accuracy, error
 
@@ -146,3 +132,14 @@ def predecir_en_folds(folds, tipo, parametros):
         parte["semilla"] = semilla
         partes.append(parte)
     return pd.concat(partes)
+
+
+def preparar_juntos(train, test):
+    """Matrices de features sin target de train y test, con los mismos niveles en las categóricas.
+
+    Hace falta cuando se mezclan filas de los dos (pseudo-etiquetado) o se predice el test.
+    """
+    niveles = {
+        c: sorted(set(train[c].dropna()) | set(test[c].dropna())) for c in evaluacion.CATEGORICAS
+    }
+    return evaluacion.preparar(train, niveles), evaluacion.preparar(test, niveles)

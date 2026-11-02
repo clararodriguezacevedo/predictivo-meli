@@ -8,6 +8,7 @@ Uso:
     python run_validar_modelo.py --modelo xgboost --nota "primera prueba"
     python run_validar_modelo.py --parametros-de <id de una corrida del registro>
     python run_validar_modelo.py --modelo lightgbm --sin-target-encoding
+    python run_validar_modelo.py --ensamble-de <id lightgbm> <id xgboost>
 """
 
 import argparse
@@ -15,6 +16,7 @@ import argparse
 import evaluacion
 import features
 import modelo
+import pseudo_etiquetas
 import registro
 from carga import cargar_train_test
 
@@ -24,7 +26,13 @@ def main():
     parser.add_argument("--modelo", choices=list(modelo.PARAMETROS_POR_DEFECTO), default="lightgbm")
     parser.add_argument("--parametros-de", metavar="RUN_ID",
                         help="usar el modelo y los hiperparámetros de una corrida registrada")
+    parser.add_argument("--ensamble-de", metavar="RUN_ID", nargs="+",
+                        help="promediar los modelos de estas corridas registradas")
     parser.add_argument("--sin-target-encoding", action="store_true")
+    parser.add_argument("--con-consenso", action="store_true",
+                        help="agregar el consenso del vendedor en dos etapas")
+    parser.add_argument("--con-pseudo-etiquetas", action="store_true",
+                        help="sumar al entrenamiento predicciones seguras de items sin etiqueta")
     parser.add_argument("--nota", default="")
     args = parser.parse_args()
 
@@ -35,10 +43,22 @@ def main():
         tipo, parametros = origen["modelo"], origen["parametros"]
         nota = nota or f"parámetros de {origen['id']}"
 
-    train, _ = features.construir(*cargar_train_test())
+    if args.ensamble_de:
+        origenes = [registro.buscar(run_id) for run_id in args.ensamble_de]
+        tipo = "ensamble"
+        parametros = {o["modelo"]: o["parametros"] for o in origenes}
+        nota = nota or "promedio de " + " y ".join(o["id"] for o in origenes)
+
+    train, test = features.construir(*cargar_train_test())
     y = evaluacion.y_binario(train)
+    if args.con_pseudo_etiquetas:
+        parametros = parametros or modelo.PARAMETROS_POR_DEFECTO[tipo]
+        accuracy, error = pseudo_etiquetas.validar(train, y, test, tipo, parametros, nota=nota)
+        print(f"{tipo} con pseudo-etiquetas: accuracy {accuracy:.4f} (error estándar {error:.4f})")
+        return
     accuracy, error = modelo.validar(
-        train, y, tipo, parametros, usar_target_encoding=not args.sin_target_encoding, nota=nota
+        train, y, tipo, parametros, usar_target_encoding=not args.sin_target_encoding, nota=nota,
+        usar_consenso=args.con_consenso,
     )
     print(f"{tipo}: accuracy {accuracy:.4f} (error estándar {error:.4f})")
 

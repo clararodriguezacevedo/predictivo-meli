@@ -9,3 +9,4 @@ pyarrow
 tabulate
 xgboost
 optuna
+catboost
