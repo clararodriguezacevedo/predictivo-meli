@@ -108,9 +108,10 @@ que dice la propia publicación.
     rep.tabla(confianza)
     seguros = d[d["confianza"] > MUY_SEGURO]
     rep.texto(f"""
-El modelo está razonablemente calibrado: cuando duda se equivoca casi la mitad de las veces y
-cuando está muy seguro (más de {MUY_SEGURO:.0%}) falla el {seguros["error"].mean():.1%}.
-Pero como casi todos los items caen en ese tramo, esos fallos son
+El modelo se cree más seguro de lo que es: por su confianza esperaría
+{np.minimum(d["proba_usado"], 1 - d["proba_usado"]).mean():.1%} de error, y el real es {d["error"].mean():.1%}.
+Cuando está muy seguro (más de {MUY_SEGURO:.0%}) falla el {seguros["error"].mean():.1%}.
+Como casi todos los items caen en ese tramo, esos fallos son
 {seguros["error"].sum():,}, el {seguros["error"].sum() / len(errores):.0%} de todos los
 errores.
 """)
