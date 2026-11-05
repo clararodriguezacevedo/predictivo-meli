@@ -1,9 +1,4 @@
-"""Carga de los jsonlines crudos y aplanado a un DataFrame tabular.
-
-El aplanado solo extrae información de los campos anidados (listas y dicts) sin
-hacer feature engineering: eso vive en `features`. El resultado se cachea en
-parquet para no re-parsear los JSON en cada corrida.
-"""
+"""Lee los jsonlines crudos y aplana cada item a una fila, sin crear features nuevas."""
 
 import json
 import re
@@ -13,15 +8,13 @@ import pandas as pd
 
 import config
 
-# Las primeras seis son constantes o vacías en train y test. Las URL tienen un valor
-# distinto por fila, pero repiten el título y la primera foto; el subdominio del
-# permalink se probó como variable y no aportó
+# Las seis primeras son constantes o vacías (D02); las URL no aportaron como variables (D70, D80)
 COLUMNAS_DESCARTADAS = [
     "site_id", "listing_source", "international_delivery_mode", "coverage_areas",
     "differential_pricing", "subtitle", "permalink", "thumbnail", "secure_thumbnail",
 ]
 
-# Medios de pago "no MercadoPago" que aparecen en los datos (id y descripción del JSON)
+# Medios de pago por fuera de MercadoPago (id y descripción del JSON)
 MEDIOS_DE_PAGO = {
     "MLAMO": "Efectivo",
     "MLATB": "Transferencia bancaria",
@@ -39,7 +32,7 @@ MEDIOS_DE_PAGO = {
     "MLABC": "Cheque certificado",
 }
 
-# Ids de foto nuevos: "111301-MLA20304563887_052015" (termina en MMYYYY)
+# Ids de foto nuevos terminan en mes y año: "111301-MLA20304563887_052015"
 _RE_FOTO_FECHA = re.compile(r"_(\d{2})(\d{4})$")
 
 
@@ -49,7 +42,7 @@ def _nombre(d, clave):
 
 
 def _tamanio(foto, campo="max_size"):
-    """Devuelve (ancho, alto) de una foto según `campo`, o (nan, nan)."""
+    """(ancho, alto) de una foto, o (nan, nan) si no está."""
     try:
         ancho, alto = foto.get(campo, "").split("x")
         return int(ancho), int(alto)
@@ -63,8 +56,7 @@ def _aplanar_fotos(fotos):
     altos = [h for _, h in tamanios if not np.isnan(h)]
     fechas = [_RE_FOTO_FECHA.search(f.get("id", "")) for f in fotos]
     fechas = [int(m.group(2)) * 12 + int(m.group(1)) - 1 for m in fechas if m]
-    # `size` es el tamaño con el que se muestra la foto (lado mayor de 500 px como
-    # máximo), así que conserva la proporción original de la imagen
+    # `size` tiene lado mayor de 500 px como máximo, pero conserva la proporción original
     mostrados = [t for t in (_tamanio(f, "size") for f in fotos) if not np.isnan(t[0])]
     return {
         "n_pictures": len(fotos),
@@ -77,10 +69,8 @@ def _aplanar_fotos(fotos):
         "pic_max_ancho": max(anchos) if anchos else np.nan,
         "pic_max_alto": max(altos) if altos else np.nan,
         "pic_min_lado": min(min(a, h) for a, h in zip(anchos, altos)) if anchos else np.nan,
-        # Fracción de fotos con id en formato nuevo (incluye mes y año de subida)
         "pic_frac_id_fechado": len(fechas) / len(fotos) if fotos else np.nan,
-        # Mes de la foto más vieja, como meses absolutos (anio * 12 + mes)
-        "pic_mes_mas_viejo": min(fechas) if fechas else np.nan,
+        "pic_mes_mas_viejo": min(fechas) if fechas else np.nan,  # En meses absolutos
     }
 
 
@@ -102,38 +92,29 @@ def _a_numero(texto):
 
 
 def _aplanar_atributos(atributos):
-    """Extrae los valores de la ficha técnica que hablan de la condición del item.
-
-    Solo existen en vehículos, inmuebles y repuestos. Se buscan por nombre porque
-    los ids cambian entre categorías.
-    """
+    """Valores de la ficha técnica que hablan de la condición del item."""
+    # Se buscan por nombre porque los ids cambian entre categorías
     valores = {a.get("name"): (a.get("value_name") or "").strip() for a in atributos}
     unico_duenio = valores.get("Único dueño")
     return {
         "n_attributes": len(atributos),
-        "attr_ids": "|".join(sorted({a.get("id", "") for a in atributos})),
         "attr_kilometros": _a_numero(valores["Kilómetros"]) if "Kilómetros" in valores else np.nan,
         "attr_anio": _a_numero(valores["Año"]) if "Año" in valores else np.nan,
-        # Inmuebles: "A estrenar", "Hasta 5 años", ..., "Más de 40 años"
-        "attr_antiguedad": valores.get("Antigüedad") or None,
-        # Inmuebles: "Excelente", "Muy bueno", "Bueno", "A refaccionar"
+        "attr_antiguedad": valores.get("Antigüedad") or None,  # "A estrenar", ..., "Más de 40 años"
         "attr_estado": valores.get("Estado del inmueble") or valores.get("Estado") or None,
         "attr_unico_duenio": {"Sí": True, "No": False}.get(unico_duenio),
-        # Repuestos con número de pieza del fabricante
         "attr_numero_pieza": "Número pieza" in valores or "Número de pieza" in valores,
     }
 
 
 def aplanar_item(r):
-    """Convierte un item crudo (dict) en un dict plano de una sola fila."""
+    """Un item crudo (dict) a un dict plano de una sola fila."""
     fila = {
         k: v for k, v in r.items()
         if not isinstance(v, (list, dict)) and k not in COLUMNAS_DESCARTADAS
     }
 
-    direccion = r.get("seller_address") or {}
-    fila["seller_state"] = _nombre(direccion, "state")
-    fila["seller_city"] = _nombre(direccion, "city")
+    fila["seller_state"] = _nombre(r.get("seller_address"), "state")
 
     envio = r.get("shipping") or {}
     fila["ship_local_pick_up"] = envio.get("local_pick_up")
@@ -169,14 +150,13 @@ def _tipar(df):
         df[col] = pd.to_datetime(df[col], utc=True).dt.tz_localize(None)
     for col in ["start_time", "stop_time"]:
         df[col] = pd.to_datetime(df[col], unit="ms")
-    # Algunos campos de texto vienen vacíos en lugar de nulos
     for col in ["warranty", "video_id", "parent_item_id"]:
-        df[col] = df[col].replace("", None)
+        df[col] = df[col].replace("", None)  # Vienen vacíos en lugar de nulos
     return df
 
 
 def cargar(split="train", usar_cache=True):
-    """Devuelve el DataFrame aplanado de `split` ("train" o "test")."""
+    """DataFrame aplanado de "train" o "test". Se cachea porque parsear el JSON es lento."""
     rutas = {"train": config.TRAIN_RAW, "test": config.TEST_RAW}
     cache = config.DATA_PROCESSED / f"{split}.parquet"
     if usar_cache and cache.exists():

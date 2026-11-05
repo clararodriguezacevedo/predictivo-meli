@@ -70,9 +70,8 @@ del dataset: {padre_en_datos:.4%}). Su valor numérico no sirve, pero `seller_id
 """)
 
 
-def train_vs_test(ctx):
-    tr, te, rep = ctx.train, ctx.test, ctx.reporte
-    rep.seccion("Train vs test (adversarial validation)")
+def puntajes_adversarios(tr, te):
+    """Probabilidad de "ser de test" de cada fila de train y de test, predicha fuera de muestra."""
     cols = [
         "log_price", "initial_quantity", "sold_quantity", "available_quantity",
         "n_pictures", "n_attributes", "n_variations", "warranty_len", "title_len",
@@ -85,7 +84,14 @@ def train_vs_test(ctx):
     modelo = lgb.LGBMClassifier(n_estimators=200, learning_rate=0.05, verbose=-1,
                                 random_state=config.SEED)
     proba = cross_val_predict(modelo, X, es_test, cv=5, method="predict_proba")[:, 1]
-    auc = roc_auc_score(es_test, proba)
+    return proba[:len(tr)], proba[len(tr):]
+
+
+def train_vs_test(ctx):
+    tr, te, rep = ctx.train, ctx.test, ctx.reporte
+    rep.seccion("Train vs test (adversarial validation)")
+    en_train, en_test = puntajes_adversarios(tr, te)
+    auc = roc_auc_score(np.r_[np.zeros(len(tr)), np.ones(len(te))], np.r_[en_train, en_test])
     vendedores_conocidos = te["seller_id"].isin(tr["seller_id"]).mean()
     categorias_conocidas = te["category_id"].isin(tr["category_id"]).mean()
     rep.texto(f"""

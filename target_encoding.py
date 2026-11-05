@@ -1,18 +1,6 @@
-"""Features que usan el target, calculadas sin filtrarlo (target encoding con folds).
+"""Features que usan el target, calculadas con folds para que ninguna fila vea su propia etiqueta.
 
-A diferencia de `features.py`, acá todo depende de `condition`, así que nunca se
-calcula sobre el dataset completo. Cada encoder aprende de un conjunto de filas con
-etiqueta (`fit`) y se aplica a otras filas (`transform`). La función `codificar`
-arma las features respetando dos reglas:
-
-- Las filas a predecir (validación o test) se codifican con las etiquetas de todo
-  el entrenamiento, y sus propias etiquetas nunca intervienen.
-- Las filas de entrenamiento se codifican por sub-folds: cada una recibe valores
-  calculados con las etiquetas de los otros sub-folds. Así ninguna fila ve su
-  propia etiqueta y la feature se comporta igual que en las filas a predecir.
-
-Se usan folds y no leave-one-out porque con leave-one-out el valor de cada fila
-depende (al revés) de su propia etiqueta, y un modelo de árboles puede deducirla.
+Validación y test se codifican con las etiquetas de todo el entrenamiento; el entrenamiento, por sub-folds.
 """
 
 import numpy as np
@@ -23,21 +11,15 @@ from sklearn.model_selection import KFold
 import config
 from features import normalizar_texto
 
+# Folds y no leave-one-out: con leave-one-out un árbol puede deducir la etiqueta de cada fila
 N_SUBFOLDS = 5
 
 
 class EncoderDeGrupo:
-    """Tasa de usados suavizada de un grupo (vendedor, categoría, etc.).
-
-    El suavizado acerca la tasa al promedio global cuando el grupo tiene pocos
-    casos: tasa = (usados + m * global) / (n + m). También devuelve `n`, la cantidad
-    de filas con etiqueta en las que se apoya, para que el modelo sepa cuánto
-    confiar. Los grupos sin ninguna fila con etiqueta quedan en nulo.
-    """
+    """Tasa de usados de un grupo, suavizada hacia la tasa global, y cuántas filas la respaldan."""
 
     def __init__(self, *columnas, suavizado=2.0, normalizar=False):
-        # Varias columnas definen el grupo por su combinación (vendedor y categoría).
-        # `normalizar` pasa el texto a minúsculas sin tildes antes de agrupar.
+        # Suavizado: la tasa de un grupo chico no merece tanta confianza (D41)
         self.columnas = list(columnas)
         self.suavizado = suavizado
         self.normalizar = normalizar
@@ -73,36 +55,25 @@ class EncoderDeGrupo:
 
 
 class EncoderDeVecinos:
-    """Condición de los títulos más parecidos entre las filas con etiqueta.
-
-    Representa cada título con TF-IDF de palabras y pares de palabras, y para cada
-    fila busca los `k` títulos de entrenamiento con mayor similitud coseno. Devuelve
-    la tasa de usados de esos vecinos (simple y ponderada por similitud) y qué tan
-    parecido es el más cercano. Captura "este producto exacto suele venderse
-    usado", algo que un modelo lineal sobre palabras sueltas no ve.
-
-    Las palabras muy frecuentes se descartan (`max_df`): no ayudan a encontrar
-    productos parecidos y hacen la búsqueda mucho más lenta.
-    """
+    """Tasa de usados de los k títulos más parecidos: "este producto suele venderse usado" (D32)."""
 
     def __init__(self, k=10, max_df=0.02, bloque=2000):
         self.k = k
-        self.max_df = max_df
-        self.bloque = bloque
+        self.max_df = max_df  # Las palabras muy frecuentes no distinguen productos y hacen todo lento
+        self.bloque = bloque  # Se buscan de a bloques para no llenar la memoria
 
     def fit(self, df, y):
         self.vectorizador_ = TfidfVectorizer(
             ngram_range=(1, 2), min_df=2, max_df=self.max_df, sublinear_tf=True,
             token_pattern=r"[a-z0-9]+",
         )
-        # TF-IDF ya normaliza cada fila, así que el producto punto es la similitud coseno
+        # TF-IDF ya normaliza cada fila: el producto punto es la similitud coseno
         self.matriz_ = self.vectorizador_.fit_transform(normalizar_texto(df["title"])).T.tocsr()
         self.y_ = y.to_numpy().astype(float)
-        self.tasa_global_ = self.y_.mean()
         return self
 
     def _vecinos(self, consultas):
-        """Similitud y etiqueta de los k vecinos más cercanos de cada consulta."""
+        """Similitud y etiqueta de los k vecinos de cada consulta."""
         n = consultas.shape[0]
         similitud = np.zeros((n, self.k))
         etiqueta = np.full((n, self.k), np.nan)
@@ -139,18 +110,9 @@ class EncoderDeVecinos:
 
 
 class EncoderVecinosDelVendedor:
-    """Etiquetas de los items del mismo vendedor que más se parecen a cada item.
+    """Etiquetas de los items más parecidos del mismo vendedor: separa a los vendedores mixtos (D34)."""
 
-    La tasa de usados del vendedor trata igual a todas sus publicaciones. Pero un
-    vendedor mixto (por ejemplo, una librería que vende libros nuevos y usados)
-    suele publicar parecido los items de la misma condición. Para cada fila se
-    miran los items con etiqueta de su vendedor y se devuelve la etiqueta del de
-    título más parecido, la del publicado más cerca en el tiempo y la tasa entre
-    los de precio parecido o mismo tipo de publicación y stock.
-    """
-
-    # Diferencia máxima de log del precio para considerar dos precios parecidos
-    PRECIO_PARECIDO = 0.2
+    PRECIO_PARECIDO = 0.2  # Diferencia máxima de log del precio, unos 20%
 
     @staticmethod
     def _tabla(df):
@@ -184,7 +146,7 @@ class EncoderVecinosDelVendedor:
         mas_parecido = p.loc[g["similitud"].idxmax()].set_index("fila")
         out["te_vv_similitud_max"] = mas_parecido["similitud"]
         out["te_vv_y_mas_parecido"] = mas_parecido["y"]
-        peso = p["similitud"] ** 2 + 1e-3
+        peso = p["similitud"] ** 2 + 1e-3  # El cuadrado premia a los muy parecidos; 1e-3 evita dividir por 0
         out["te_vv_tasa_ponderada"] = (p["y"] * peso).groupby(p["fila"]).sum() / peso.groupby(p["fila"]).sum()
         mas_cercano = p[p["distancia_horas"] == g["distancia_horas"].transform("min")].groupby("fila")
         out["te_vv_y_mas_cercano_en_tiempo"] = mas_cercano["y"].mean()
@@ -205,23 +167,18 @@ class EncoderVecinosDelVendedor:
 
 
 def crear_encoders():
-    """Encoders nuevos, sin ajustar. Se crean de nuevo para cada fold."""
+    """Encoders sin ajustar. Se crean de nuevo para cada fold."""
     return [
-        EncoderDeGrupo("seller_id"),
-        EncoderDeGrupo("category_id"),
-        EncoderDeVecinos(k=30),
-        # Dentro del vendedor: separa sus publicaciones por tipo, stock, garantía y título
+        EncoderDeGrupo("seller_id"),  # D30
+        EncoderDeGrupo("category_id"),  # D31
+        EncoderDeVecinos(k=30),  # D32 y D40
+        # Dentro del vendedor: separa sus publicaciones por tipo, stock, garantía y título (D33)
         EncoderDeGrupo("seller_id", "listing_type_id"),
         EncoderDeGrupo("seller_id", "iq_es_1"),
         EncoderDeGrupo("seller_id", "tiene_warranty"),
         EncoderDeGrupo("seller_id", "title", normalizar=True),
-        EncoderVecinosDelVendedor(),
+        EncoderVecinosDelVendedor(),  # D34
     ]
-
-
-def _ajustar_y_aplicar(train, y, destino):
-    partes = [encoder.fit(train, y).transform(destino) for encoder in crear_encoders()]
-    return pd.concat(partes, axis=1)
 
 
 def subfolds(n_filas, semilla=config.SEED):
@@ -229,26 +186,19 @@ def subfolds(n_filas, semilla=config.SEED):
     return list(KFold(N_SUBFOLDS, shuffle=True, random_state=semilla).split(np.zeros(n_filas)))
 
 
-def codificar(train, y, a_predecir, semilla=config.SEED):
-    """Devuelve las features de target encoding de `train` y de `a_predecir`.
+def codificar(train, y, a_predecir, semilla=config.SEED, fabrica=crear_encoders):
+    """Features de `train` (por sub-folds) y de `a_predecir` (con las etiquetas de todo `train`)."""
+    def ajustar_y_aplicar(tr, y_tr, destino):
+        return pd.concat([e.fit(tr, y_tr).transform(destino) for e in fabrica()], axis=1)
 
-    `train` se codifica por sub-folds y `a_predecir` con las etiquetas de todo
-    `train`. Las etiquetas de `a_predecir`, si existen, no se usan nunca.
-    """
-    partes = []
-    for i_ajuste, i_resto in subfolds(len(train), semilla):
-        partes.append(
-            _ajustar_y_aplicar(train.iloc[i_ajuste], y.iloc[i_ajuste], train.iloc[i_resto])
-        )
-    te_train = pd.concat(partes).loc[train.index]
-    te_prediccion = _ajustar_y_aplicar(train, y, a_predecir)
-    return te_train, te_prediccion
+    partes = [ajustar_y_aplicar(train.iloc[i_ajuste], y.iloc[i_ajuste], train.iloc[i_resto])
+              for i_ajuste, i_resto in subfolds(len(train), semilla)]
+    return pd.concat(partes).loc[train.index], ajustar_y_aplicar(train, y, a_predecir)
 
 
 def descripcion():
     """Configuración del target encoding, para dejarla anotada en el registro."""
     return {
-        "activo": True,
         "n_subfolds": N_SUBFOLDS,
         "encoders": [{"tipo": type(e).__name__, **vars(e)} for e in crear_encoders()],
     }

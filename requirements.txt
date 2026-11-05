@@ -7,6 +7,3 @@ matplotlib
 seaborn
 pyarrow
 tabulate
-xgboost
-optuna
-catboost

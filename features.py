@@ -1,10 +1,4 @@
-"""Feature engineering compartido entre el EDA y los modelos.
-
-Ninguna de estas funciones usa el target, así que se pueden calcular sobre train y
-test concatenados sin generar leakage. Los perfiles de vendedor y categoría se
-calculan justamente así, para que los vendedores que solo aparecen en test también
-tengan perfil.
-"""
+"""Features sin target: del item y perfiles calculados sobre train + test. Códigos en docs/DECISIONES.md."""
 
 import unicodedata
 
@@ -15,15 +9,13 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 import config
 
-# Año de referencia del dataset (casi todo se publicó en 2015)
+# Casi todo se publicó en 2015
 ANIO_DATOS = 2015
 
-# Proporciones típicas de fotos sacadas con celular o cámara compacta (4:3 y 16:9,
-# horizontales o verticales), redondeadas a 2 decimales
+# Proporciones de cámara (4:3 y 16:9, horizontales o verticales), a 2 decimales
 ASPECTOS_DE_CAMARA = [1.33, 1.34, 0.75, 0.74, 1.78, 1.79, 0.56]
 
-# Patrones sobre el título normalizado (minúsculas, sin tildes). "como nuevo",
-# "igual a nuevo" y "casi nuevo" se separan de "nuevo" porque significan lo contrario.
+# Sobre el título normalizado; "como nuevo" se separa de "nuevo" porque significa lo contrario (D20)
 PATRONES_TITULO = {
     "t_nuevo": r"(?<!como )(?<!igual a )(?<!casi )\bnuev[oa]s?\b",
     "t_usado": r"\busad[oa]s?\b|segunda mano",
@@ -36,7 +28,7 @@ PATRONES_TITULO = {
     "t_anio": r"\b(?:19[5-9]\d|200\d|201[0-5])\b",
 }
 
-# Patrones sobre el texto de garantía normalizado
+# Sobre el texto de garantía normalizado (D20)
 PATRONES_GARANTIA = {
     "w_fabrica": r"fabric|oficial|importador",
     "w_plazo": r"\d+\s*(?:mes|ano|dia)",
@@ -67,7 +59,7 @@ def agregar_features_texto(df):
 
 
 def agregar_features_atributos(df):
-    """Features de la ficha técnica de vehículos e inmuebles."""
+    """Ficha técnica de vehículos e inmuebles (D18)."""
     df = df.copy()
     df["attr_es_0km"] = df["attr_kilometros"] == 0
     df["attr_anios_de_uso"] = ANIO_DATOS - df["attr_anio"]
@@ -76,10 +68,10 @@ def agregar_features_atributos(df):
 
 
 def agregar_features_item(df):
-    """Features derivadas de un único item (no miran otras filas)."""
+    """Features de un solo item, sin mirar otras filas (D19)."""
     df = df.copy()
 
-    # Stock: un vendedor que repone stock deja available > initial - sold
+    # Stock: reponer deja available > initial - sold
     df["iq_es_1"] = df["initial_quantity"] == 1
     df["vendio_algo"] = df["sold_quantity"] > 0
     df["stock_desbalance"] = (
@@ -97,40 +89,38 @@ def agregar_features_item(df):
         (df["last_updated"] - df["date_created"]).dt.total_seconds() / 86400
     )
     df["duracion_dias"] = (df["stop_time"] - df["start_time"]).dt.days
-    # Casi todas las publicaciones duran un número exacto de días. Un desfasaje de unos
-    # segundos en el vencimiento aparece casi solo en publicaciones de usados
+    # Unos segundos de más en la duración son mucho más comunes en usados (D25)
     df["duracion_resto_seg"] = (df["stop_time"] - df["start_time"]).dt.total_seconds() % 86400
-    df["dias_update_a_fin"] = (df["stop_time"] - df["last_updated"]).dt.total_seconds() / 86400
-    df["seg_creacion_a_inicio"] = (df["start_time"] - df["date_created"]).dt.total_seconds()
-    df["dia_creacion"] = (df["date_created"] - pd.Timestamp(f"{ANIO_DATOS}-01-01")).dt.days
-    # Las fechas vienen en UTC, se pasan a hora argentina (UTC-3)
+    df["dias_update_a_fin"] = (df["stop_time"] - df["last_updated"]).dt.total_seconds() / 86400  # D26
+    df["seg_creacion_a_inicio"] = (df["start_time"] - df["date_created"]).dt.total_seconds()  # D26
+    df["dia_creacion"] = (df["date_created"] - pd.Timestamp(f"{ANIO_DATOS}-01-01")).dt.days  # D26
+    # Las fechas vienen en UTC, se pasan a hora argentina
     creacion_ar = df["date_created"] - pd.Timedelta(hours=3)
     df["hora_creacion"] = creacion_ar.dt.hour
     df["dia_semana"] = creacion_ar.dt.dayofweek
-    df["hora_update"] = (df["last_updated"] - pd.Timedelta(hours=3)).dt.hour
+    df["hora_update"] = (df["last_updated"] - pd.Timedelta(hours=3)).dt.hour  # D26
 
     # Texto
     df["title_len"] = df["title"].str.len()
     df["title_n_digitos"] = df["title"].str.count(r"\d")
     df["title_frac_mayus"] = df["title"].str.count(r"[A-Z]") / df["title_len"].clip(lower=1)
     df["warranty_len"] = df["warranty"].fillna("").str.len()
-    df["tiene_warranty"] = df["warranty"].notna()
+    df["tiene_warranty"] = df["warranty"].notna()  # La ausencia informa (D03)
 
-    # Fotos: las de catálogo suelen ser cuadradas, las de celular o cámara son 4:3 o 16:9
+    # Fotos: las de catálogo suelen ser cuadradas, las de celular 4:3 o 16:9 (D24)
     df["pic0_aspecto"] = df["pic0_ancho"] / df["pic0_alto"]
     df["pic_tiene_cuadrada"] = df["pic_frac_cuadradas"] > 0
     df["pic_aspecto_camara"] = df["pic0_aspecto"].round(2).isin(ASPECTOS_DE_CAMARA)
     df["pic_lado_max"] = df[["pic_max_ancho", "pic_max_alto"]].max(axis=1)
 
-    # Presencia de campos opcionales
+    # Campos opcionales: la ausencia informa (D03)
     df["tiene_video"] = df["video_id"].notna()
     df["es_tienda_oficial"] = df["official_store_id"].notna()
     df["tiene_parent"] = df["parent_item_id"].notna()
     return df
 
 
-# Indicadores por item (0/1) que se promedian por vendedor o categoría. Ninguno
-# usa el target: describen cómo publica el vendedor, no qué condición declaró.
+# Describen cómo publica el vendedor, no qué condición declaró
 INDICADORES = {
     "free": lambda df: df["listing_type_id"] == "free",
     "bronze": lambda df: df["listing_type_id"] == "bronze",
@@ -150,9 +140,8 @@ INDICADORES_CATEGORIA = [
     "free", "iq_1", "vendio", "warranty", "price_decimales", "repuso_stock",
     "foto_cuadrada", "t_nuevo", "t_estado_de_uso", "t_antiguo_coleccion", "w_plazo",
 ]
-# Indicadores que se promedian por palabra del título
 INDICADORES_PALABRA = ["free", "iq_1", "price_decimales", "repuso_stock", "foto_cuadrada"]
-# Una palabra tiene que aparecer en al menos esta cantidad de títulos para tener perfil
+# Con menos títulos, el perfil de una palabra es puro ruido
 MIN_TITULOS_POR_PALABRA = 5
 
 
@@ -161,6 +150,7 @@ def _indicadores(df):
 
 
 def _perfil_vendedor(todo, indicadores):
+    """Cómo publica cada vendedor (D21)."""
     g = todo.groupby("seller_id")
     perfil = indicadores.groupby(todo["seller_id"]).mean().add_prefix("seller_frac_")
     perfil["seller_n_items"] = g.size()
@@ -171,13 +161,13 @@ def _perfil_vendedor(todo, indicadores):
     perfil["seller_max_initial_quantity"] = g["initial_quantity"].max()
     perfil["seller_media_n_pictures"] = g["n_pictures"].mean()
     perfil["seller_n_garantias_distintas"] = g["warranty"].nunique()
-    # Ritmo de publicación: en cuántos días distintos publicó y a lo largo de cuánto tiempo
     perfil["seller_dias_activos"] = g["date_created"].agg(lambda s: s.dt.date.nunique())
     perfil["seller_span_dias"] = (g["date_created"].max() - g["date_created"].min()).dt.days
     return perfil
 
 
 def _perfil_categoria(todo, indicadores):
+    """Cómo se publica en cada categoría (D22)."""
     g = todo.groupby("category_id")
     perfil = (indicadores[INDICADORES_CATEGORIA].groupby(todo["category_id"]).mean()
               .add_prefix("cat_frac_"))
@@ -189,14 +179,7 @@ def _perfil_categoria(todo, indicadores):
 
 
 def _perfil_palabras(todo, indicadores):
-    """Perfil del título a partir de sus palabras, sin usar el target.
-
-    Para cada palabra se calcula la media de un indicador (por ejemplo, publicación
-    gratuita) entre los títulos que la contienen, excluyendo al propio item
-    (leave-one-out) para que un item no se describa a sí mismo. Después se resume
-    cada título con la media y el máximo sobre sus palabras. Es una forma de saber
-    "qué tipo de producto es" mirando cómo se publican los productos parecidos.
-    """
+    """Qué tipo de producto es, según cómo se publican los títulos con las mismas palabras (D23)."""
     vectorizador = CountVectorizer(
         binary=True, min_df=MIN_TITULOS_POR_PALABRA, token_pattern=r"[a-z0-9]+"
     )
@@ -208,7 +191,7 @@ def _perfil_palabras(todo, indicadores):
     for nombre in INDICADORES_PALABRA:
         valor = indicadores[nombre].to_numpy()
         suma_por_palabra = np.bincount(X.col, weights=valor[X.row], minlength=X.shape[1])
-        # Media de la palabra entre los otros títulos que la contienen
+        # Se excluye al propio item, para que no se describa a sí mismo
         media_sin_el_item = (suma_por_palabra[X.col] - valor[X.row]) / (
             titulos_por_palabra[X.col] - 1
         )
@@ -225,12 +208,12 @@ def _perfil_palabras(todo, indicadores):
 
 
 def _contexto_por_item(todo):
-    """Features de cada item que dependen de las otras publicaciones (train + test)."""
+    """Features de cada item que dependen de las otras publicaciones."""
     ctx = pd.DataFrame(index=todo.index)
     titulo = normalizar_texto(todo["title"])
     ctx["titulo_repetido"] = titulo.map(titulo.value_counts())
 
-    # Ráfagas: publicaciones del mismo vendedor el mismo día o en el mismo minuto
+    # Ráfagas: un comercio carga muchas publicaciones juntas
     vendedor, creado = todo["seller_id"], todo["date_created"]
     ctx["seller_items_mismo_dia"] = (
         todo.groupby([vendedor, creado.dt.date])["id"].transform("size")
@@ -246,12 +229,8 @@ def _contexto_por_item(todo):
 
 
 def agregar_perfiles(train, test):
-    """Agrega features que miran a otras publicaciones, calculadas sobre train + test.
-
-    Son perfiles del vendedor y de la categoría, y features de contexto por item.
-    Nada de esto usa el target: se descarta antes de calcular. Espera DataFrames ya
-    pasados por las funciones de features por item.
-    """
+    """Perfiles sobre train + test: así también los tienen los vendedores que solo están en test."""
+    # El target se descarta antes de calcular: run_verificar_leakage.py lo comprueba
     todo = pd.concat(
         [train.drop(columns=[config.TARGET], errors="ignore"), test], ignore_index=True
     )

@@ -1,56 +1,73 @@
-"""Modelo completo: features sin target + target encoding con folds + boosting.
-
-Los clasificadores disponibles están en `clasificadores.py`. El armado de los datos de
-cada fold (`armar_folds`) está separado del entrenamiento (`validar_en_folds`) porque el target encoding es lo más
-caro y no depende de los hiperparámetros: en una búsqueda se arma una sola vez y se
-reutiliza para todas las pruebas.
-
-`armar_matrices` es la única función que construye las features con target, tanto
-para validar como para predecir el test. Así la validación ejercita exactamente el
-mismo camino que la predicción final.
-"""
+"""El modelo: elige las columnas, une features y target encoding, entrena LightGBM y valida."""
 
 import time
 
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
-import evaluacion
-from clasificadores import PARAMETROS_POR_DEFECTO, crear_clasificador
+import config
 import registro
 import target_encoding
 
-# Protocolo estándar: todas las corridas de tipo "validacion" lo usan, por eso son
-# comparables entre sí
+# Identificadores, texto libre, fechas crudas y target: ya están resumidos en features
+NO_SON_FEATURES = [
+    config.TARGET, "id", "seller_id", "category_id", "parent_item_id",
+    "official_store_id", "catalog_product_id", "title", "warranty", "video_id",
+    "date_created", "last_updated", "start_time", "stop_time",
+]
+CATEGORICAS = [
+    "listing_type_id", "buying_mode", "ship_mode", "status", "sub_status", "tags",
+    "ship_tags", "currency_id", "seller_state", "attr_estado", "attr_antiguedad",
+]
+# Un solo modelo: promediar cuatro no mejora de forma significativa (D50); última búsqueda sin mejora (D51)
+PARAMETROS = dict(
+    n_estimators=1500, learning_rate=0.034309580195791355, num_leaves=149,
+    min_child_samples=5, colsample_bytree=0.6874594323703044, subsample=0.8344766462089817,
+    subsample_freq=1, reg_lambda=0.07827034783412899, reg_alpha=0.029235419526953025,
+)
+# 5 folds y 2 semillas: toda corrida "validacion" usa estas particiones, así se comparan de a pares
 PROTOCOLO_VALIDACION = {"n_folds": 5, "semillas": [0, 1]}
-# Protocolo de la búsqueda de hiperparámetros: más liviano y con otra semilla, para
-# no elegir hiperparámetros mirando los mismos folds con los que después se valida
-PROTOCOLO_BUSQUEDA = {"n_folds": 4, "semillas": [100]}
+
+
+def y_binario(df):
+    return (df[config.TARGET] == config.CLASE_POSITIVA).astype(int)
+
+
+def crear_clasificador(semilla):
+    return lgb.LGBMClassifier(**PARAMETROS, random_state=semilla, n_jobs=8, verbose=-1)
+
+
+def preparar(df, niveles=None):
+    """Deja solo las features y tipa las categóricas."""
+    X = df[[c for c in df.columns if c not in NO_SON_FEATURES]].copy()
+    for col in CATEGORICAS:
+        X[col] = pd.Categorical(X[col], categories=niveles[col] if niveles else None)
+    X["attr_unico_duenio"] = X["attr_unico_duenio"].astype(float)
+    return X
+
+
+def preparar_juntos(train, test):
+    """Train y test con los mismos niveles en las categóricas, para predecir el test."""
+    niveles = {c: sorted(set(train[c].dropna()) | set(test[c].dropna())) for c in CATEGORICAS}
+    return preparar(train, niveles), preparar(test, niveles)
+
 
 def armar_matrices(X_train, train, y, X_pred, a_predecir, semilla):
-    """Devuelve las matrices finales de entrenamiento y de predicción.
-
-    `X_train` y `X_pred` son las features sin target ya preparadas
-    (`evaluacion.preparar`); `train` y `a_predecir` son los DataFrames originales,
-    de donde el target encoding toma vendedor, categoría y texto. Las etiquetas de
-    `a_predecir` no intervienen.
-    """
+    """Agrega el target encoding. Validar y predecir el test pasan por esta misma función."""
     te_train, te_pred = target_encoding.codificar(train, y, a_predecir, semilla)
     return pd.concat([X_train, te_train], axis=1), pd.concat([X_pred, te_pred], axis=1)
 
 
 def armar_folds(train, y, protocolo):
-    """Arma los datos de cada fold: lista de (X_train, y_train, X_val, y_val, semilla).
-
-    En cada fold, la parte de validación no interviene en ningún cálculo que use
-    etiquetas.
-    """
-    X = evaluacion.preparar(train)
+    """Lista de (X_train, y_train, X_val, y_val, semilla). Lo caro: se arma una vez y se reutiliza."""
+    X = preparar(train)
     folds = []
     for semilla in protocolo["semillas"]:
         particion = StratifiedKFold(protocolo["n_folds"], shuffle=True, random_state=semilla)
         for i_train, i_val in particion.split(X, y):
+            # Las etiquetas de validación no entran a ningún cálculo
             X_tr, X_val = armar_matrices(
                 X.iloc[i_train], train.iloc[i_train], y.iloc[i_train],
                 X.iloc[i_val], train.iloc[i_val], semilla,
@@ -59,11 +76,11 @@ def armar_folds(train, y, protocolo):
     return folds
 
 
-def validar_en_folds(folds, tipo, parametros):
-    """Entrena y evalúa en folds ya armados. Devuelve el accuracy de cada fold."""
+def validar_en_folds(folds):
+    """Accuracy de cada fold. Corta en 0.5: moverlo no mejora (D52)."""
     aciertos = []
     for X_tr, y_tr, X_val, y_val, semilla in folds:
-        clasificador = crear_clasificador(tipo, parametros, semilla).fit(X_tr, y_tr)
+        clasificador = crear_clasificador(semilla).fit(X_tr, y_tr)
         aciertos.append(float((clasificador.predict(X_val) == y_val).mean()))
     return aciertos
 
@@ -73,7 +90,7 @@ def resumir(aciertos):
 
 
 def descripcion_comun(folds, protocolo):
-    """Detalles de la corrida que van al registro, además del modelo y sus parámetros."""
+    """Detalles que van al registro además del modelo y sus parámetros."""
     return {
         "protocolo": protocolo,
         "target_encoding": target_encoding.descripcion(),
@@ -81,52 +98,29 @@ def descripcion_comun(folds, protocolo):
     }
 
 
-def validar(train, y, tipo="lightgbm", parametros=None, protocolo=PROTOCOLO_VALIDACION,
-            registrar=True, nota=""):
-    """Validación cruzada del modelo completo. Devuelve (accuracy, error estándar).
-
-    Con el protocolo estándar la corrida se registra como "validacion".
-    """
-    parametros = parametros or PARAMETROS_POR_DEFECTO[tipo]
+def validar(train, y, protocolo=PROTOCOLO_VALIDACION, registrar=True, nota=""):
+    """Validación cruzada del modelo completo. Devuelve (accuracy, error estándar)."""
     inicio = time.time()
     folds = armar_folds(train, y, protocolo)
-    aciertos = validar_en_folds(folds, tipo, parametros)
+    aciertos = validar_en_folds(folds)
     accuracy, error = resumir(aciertos)
     if registrar:
         registro.registrar(
-            "validacion", tipo, parametros, accuracy=accuracy, error_estandar=error,
+            "validacion", "lightgbm", PARAMETROS, accuracy=accuracy, error_estandar=error,
             accuracy_por_fold=aciertos, duracion_seg=round(time.time() - inicio),
             nota=nota, **descripcion_comun(folds, protocolo),
         )
     return accuracy, error
 
 
-def predecir_en_folds(folds, tipo, parametros):
-    """Predicción de validación de cada fila, hecha por un modelo que no la vio.
-
-    Devuelve un DataFrame con la probabilidad de usado, la etiqueta real y las
-    features de target encoding que recibió la fila al ser validada. Sirve para
-    analizar errores. Si el protocolo tiene varias semillas, cada fila aparece una
-    vez por semilla.
-    """
+def predecir_en_folds(folds):
+    """Probabilidad de cada fila, predicha por un modelo que no la vio. Para analizar errores."""
     partes = []
     for X_tr, y_tr, X_val, y_val, semilla in folds:
-        clasificador = crear_clasificador(tipo, parametros, semilla).fit(X_tr, y_tr)
-        columnas_te = [c for c in X_val.columns if c.startswith("te_")]
-        parte = X_val[columnas_te].copy()
+        clasificador = crear_clasificador(semilla).fit(X_tr, y_tr)
+        parte = X_val[[c for c in X_val.columns if c.startswith("te_")]].copy()
         parte["proba_usado"] = clasificador.predict_proba(X_val)[:, 1]
         parte["y"] = y_val
         parte["semilla"] = semilla
         partes.append(parte)
     return pd.concat(partes)
-
-
-def preparar_juntos(train, test):
-    """Matrices de features sin target de train y test, con los mismos niveles en las categóricas.
-
-    Hace falta para predecir el test.
-    """
-    niveles = {
-        c: sorted(set(train[c].dropna()) | set(test[c].dropna())) for c in evaluacion.CATEGORICAS
-    }
-    return evaluacion.preparar(train, niveles), evaluacion.preparar(test, niveles)

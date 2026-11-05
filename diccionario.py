@@ -202,9 +202,6 @@ VARIABLES = [
     Variable("seller_state", "Ubicación del vendedor", APLANADA,
              "Provincia del vendedor, desde `seller_address.state.name`. Más del 90% es "
              "Capital Federal o Buenos Aires."),
-    Variable("seller_city", "Ubicación del vendedor", APLANADA,
-             "Ciudad o barrio del vendedor, desde `seller_address.city.name`. Texto libre con "
-             "más de 3.000 valores distintos."),
 
     # Envío
     Variable("ship_mode", "Envío", APLANADA,
@@ -262,11 +259,6 @@ VARIABLES = [
     Variable("n_attributes", "Contenido de la publicación", APLANADA,
              "Cantidad de atributos de la ficha técnica (`attributes`). Casi siempre 0; los "
              "valores altos corresponden a fichas de vehículos (65 atributos) e inmuebles."),
-    Variable("attr_ids", "Contenido de la publicación", APLANADA,
-             "Ids de los atributos de la ficha técnica, unidos con `|`. Los prefijos indican "
-             "el rubro: `MLA1743-*` y `MLA1744-*` son vehículos (kilómetros, puertas, "
-             "combustible) y `MLA1459-*` inmuebles. Los más comunes "
-             "fuera de esos rubros son `GENDER` y `Season` (indumentaria)."),
     Variable("n_pictures", "Contenido de la publicación", APLANADA,
              "Cantidad de fotos de la publicación."),
     Variable("pic_max_ancho", "Contenido de la publicación", APLANADA,

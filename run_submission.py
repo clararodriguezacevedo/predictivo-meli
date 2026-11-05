@@ -1,13 +1,9 @@
 """Entrena con todo train, predice el test y registra la corrida como "submission".
 
-Toma el modelo y los hiperparámetros de una corrida de validación del registro (por
-defecto, la de mayor accuracy), así toda submission queda atada a una validación.
+Toda submission queda atada a una validación del registro con la misma configuración.
 
 Uso:
-    python run_submission.py
-    python run_submission.py --validacion <id de una corrida de validación>
-
-Después de subir el archivo a Kaggle, anotar el puntaje:
+    python run_submission.py --validacion <id de una validación>
     python run_submission.py --anotar <id de la submission> --puntaje 0.9412
 """
 
@@ -17,61 +13,43 @@ from datetime import datetime
 
 import pandas as pd
 
+from carga import cargar_train_test
 import config
-import evaluacion
 import features
 import modelo
 import registro
 import target_encoding
-from carga import cargar_train_test
 
 CARPETA = config.OUTPUTS / "submissions"
-# Formato que espera Kaggle, confirmado con la primera submission aceptada:
-# columna `ID` con el número de fila del archivo de test empezando en 1 (no el id
-# de MercadoLibre) y columna `condition` con "new" o "used"
-COLUMNA_ID = "ID"
-PRIMER_ID = 1
 
 
-def generar(run_validacion):
-    tipo, parametros = run_validacion["modelo"], run_validacion["parametros"]
-    # La submission tiene que usar exactamente la configuración que se validó
-    if run_validacion["target_encoding"] != target_encoding.descripcion():
-        raise SystemExit(
-            f"La corrida {run_validacion['id']} se validó con otra configuración de target "
-            "encoding que la actual. Validar de nuevo con run_validar_modelo.py."
-        )
+def generar(validacion):
+    # La submission tiene que usar la configuración que se validó
+    if (validacion["target_encoding"] != target_encoding.descripcion()
+            or validacion["parametros"] != modelo.PARAMETROS):
+        raise SystemExit(f"{validacion['id']} se validó con otra configuración: validar de nuevo.")
     semilla = config.SEED
     inicio = time.time()
 
     train, test = features.construir(*cargar_train_test())
-    y = evaluacion.y_binario(train)
+    y = modelo.y_binario(train)
     X_base_train, X_base_test = modelo.preparar_juntos(train, test)
     X_train, X_test = modelo.armar_matrices(X_base_train, train, y, X_base_test, test, semilla)
-    clasificador = modelo.crear_clasificador(tipo, parametros, semilla).fit(X_train, y)
-    proba = clasificador.predict_proba(X_test)[:, 1]
-    es_usado = proba > 0.5
+    es_usado = modelo.crear_clasificador(semilla).fit(X_train, y).predict(X_test) == 1
 
-    # El archivo se escribe antes de registrar, así el registro guarda su ruta real
     CARPETA.mkdir(parents=True, exist_ok=True)
-    nombre = f"{datetime.now():%Y%m%d-%H%M%S}-{tipo}"
-    archivo = CARPETA / f"{nombre}.csv"
-    # `test` conserva el orden del archivo original, que es el que numera Kaggle
-    ids = range(PRIMER_ID, PRIMER_ID + len(test))
+    archivo = CARPETA / f"{datetime.now():%Y%m%d-%H%M%S}-lightgbm.csv"
+    # Kaggle numera las filas del test desde 1, no usa el id de MercadoLibre
     pd.DataFrame({
-        COLUMNA_ID: ids,
+        "ID": range(1, len(test) + 1),
         config.TARGET: pd.Series(es_usado).map({True: config.CLASE_POSITIVA, False: "new"}),
     }).to_csv(archivo, index=False)
-    # Las probabilidades se guardan aparte, por si después se combinan modelos
-    pd.DataFrame({COLUMNA_ID: ids, "id": test["id"], "proba_usado": proba}).to_csv(
-        CARPETA / f"{nombre}_proba.csv", index=False
-    )
 
     return archivo, registro.registrar(
-        "submission", tipo, parametros,
-        run_validacion=run_validacion["id"],
-        accuracy_validacion=run_validacion["accuracy"],
-        target_encoding=run_validacion["target_encoding"],
+        "submission", "lightgbm", modelo.PARAMETROS,
+        run_validacion=validacion["id"],
+        accuracy_validacion=validacion["accuracy"],
+        target_encoding=validacion["target_encoding"],
         features=registro.describir_features(X_train.columns),
         semilla=semilla,
         archivo=archivo.relative_to(config.RAIZ).as_posix(),
@@ -87,19 +65,17 @@ def main():
     parser.add_argument("--validacion", metavar="RUN_ID")
     parser.add_argument("--anotar", metavar="RUN_ID", help="submission a la que cargarle el puntaje")
     parser.add_argument("--puntaje", type=float)
-    parser.add_argument("--nota", default="")
     args = parser.parse_args()
 
     if args.anotar:
-        registro.anotar_leaderboard(args.anotar, args.puntaje, args.nota)
+        registro.buscar(args.anotar)
+        registro.registrar("leaderboard", "", {}, submission=args.anotar, leaderboard_publico=args.puntaje)
         print(f"Puntaje {args.puntaje} anotado para {args.anotar}")
-        return
-
-    run_validacion = (registro.buscar(args.validacion) if args.validacion
-                      else registro.mejor_validacion())
-    print(f"Usando {run_validacion['id']} (accuracy {run_validacion['accuracy']:.4f})")
-    archivo, run_id = generar(run_validacion)
-    print(f"Submission {run_id} guardada en {archivo}")
+    elif args.validacion:
+        archivo, run_id = generar(registro.buscar(args.validacion))
+        print(f"Submission {run_id} guardada en {archivo}")
+    else:
+        parser.error("indicar --validacion o --anotar")
 
 
 if __name__ == "__main__":

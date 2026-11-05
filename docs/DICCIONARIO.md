@@ -117,7 +117,6 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
 |---|---|---|---|---|---|---|
 | `seller_state` | aplanado | texto | 0.0% | 24 | `Capital Federal`, `Buenos Aires`, `Santa Fe` | Provincia del vendedor, desde `seller_address.state.name`. Más del 90% es Capital Federal o Buenos Aires. |
-| `seller_city` | aplanado | texto | 0.0% | 3,655 | `CABA`, `Buenos Aires`, `Capital Federal` | Ciudad o barrio del vendedor, desde `seller_address.city.name`. Texto libre con más de 3.000 valores distintos. |
 
 ## Envío
 
@@ -172,7 +171,6 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `video_id` | JSON | texto | 97.0% | 2,077 | `QQNfOicE_o8`, `EVCQuwl7RIE`, `mYNRC5Ia1sk` | Id de un video de YouTube asociado a la publicación. Nulo si no tiene. |
 | `n_descriptions` | aplanado | numérica | 0.0% | 2 | `1`, `0` | Cantidad de descripciones (0 o 1). El JSON solo trae el id de la descripción, no su texto. |
 | `n_attributes` | aplanado | numérica | 0.0% | 55 | 0 / 0 / 81 | Cantidad de atributos de la ficha técnica (`attributes`). Casi siempre 0; los valores altos corresponden a fichas de vehículos (65 atributos) e inmuebles. |
-| `attr_ids` | aplanado | texto | 0.0% | 484 | `(vacío)`, `GENDER\|Season`, `MLA-PART_NUMBER\|PART_NUMBER` | Ids de los atributos de la ficha técnica, unidos con `\|`. Los prefijos indican el rubro: `MLA1743-*` y `MLA1744-*` son vehículos (kilómetros, puertas, combustible) y `MLA1459-*` inmuebles. Los más comunes fuera de esos rubros son `GENDER` y `Season` (indumentaria). |
 | `n_pictures` | aplanado | numérica | 0.0% | 32 | 0 / 2 / 36 | Cantidad de fotos de la publicación. |
 | `pic_max_ancho` | aplanado | numérica | 0.8% | 1,141 | 1 / 900 / 1200 | Ancho máximo en píxeles (de `max_size`) entre las fotos del item. Refleja la resolución con la que se subió la foto. |
 | `pic_max_alto` | aplanado | numérica | 0.8% | 1,140 | 1 / 900 / 1200 | Alto máximo en píxeles (de `max_size`) entre las fotos del item. |
