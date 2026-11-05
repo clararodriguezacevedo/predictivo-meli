@@ -13,9 +13,10 @@
 
 ## Forma de trabajo
 
-- Nada de Jupyter notebooks hasta el momento de la entrega. Todo en scripts de Python.
-- Código organizado en módulos reutilizables (carga de datos, features, modelos, etc.) y scripts
-  de entrada livianos que los usan. Evitar duplicar lógica entre scripts.
+- La lógica va en módulos de Python reutilizables (carga de datos, features, modelo, etc.). Los
+  scripts `run_*.py` y los notebooks de `notebooks/` son livianos y los usan, sin duplicar lógica.
+- Los notebooks están numerados y se leen en orden, del dato crudo a la submission. No entrenan
+  el modelo final: leen el registro. Lo que se quiera registrar se corre con los scripts.
 - Los outputs generados (gráficos, tablas, submissions, modelos) van a carpetas de salida,
   separados del código.
 
@@ -29,12 +30,15 @@
 - `diccionario.py`: significado de cada variable. `run_diccionario.py` genera
   `docs/DICCIONARIO.md` y avisa si hay columnas sin documentar. Toda variable o feature
   nueva se agrega ahí.
-- `evaluacion.py`: preparación de la matriz de features. `run_evaluar_features.py` es la
-  ablación: cuánto pierde el modelo completo al quitar cada grupo de features o encoder.
 - `target_encoding.py`: features que usan el target (tasa de usados por vendedor y
-  categoría, vecinos), calculadas con folds anidados. `clasificadores.py`:
-  LightGBM, HistGradientBoosting, CatBoost, XGBoost y su promedio. `modelo.py`: une features,
-  target encoding y clasificador.
+  categoría, vecinos), calculadas con folds anidados. `modelo.py`: elige las columnas, une
+  features y target encoding, y entrena un solo LightGBM con los hiperparámetros finales (D50, D51).
+- `estadistica.py`: los tests. `decisiones.py`: la lista de decisiones y su prueba.
+  `run_decisiones.py` los corre y genera `docs/DECISIONES.md`.
+- `notebooks/`: el recorrido completo, numerado. `LEEME.md`: el orden de lectura y qué módulos
+  usa cada notebook.
+- Toda decisión lleva un comentario de una línea en el código, con su código `Dnn` si tiene test.
+  Toda decisión nueva se agrega a `decisiones.py`.
 - `errores.py` y `run_analizar_errores.py`: reporte de en qué items falla el modelo.
 - `registro.py`: registro de corridas (ver sección propia).
 - `run_verificar_leakage.py`: cinco controles de leakage sobre features, target encoding
@@ -44,18 +48,17 @@
 
 ## Registro de corridas
 
-- Toda corrida de validación, cada prueba de una búsqueda de hiperparámetros y toda
-  submission se anota en `registro/runs.jsonl` con sus parámetros exactos y su resultado.
+- Toda corrida de validación y toda submission se anota en `registro/runs.jsonl` con sus
+  parámetros exactos y su resultado.
   Lo hace `registro.py`; nunca correr un modelo por fuera de los scripts que registran.
 - `runs.jsonl` no se edita ni se reescribe, solo se agregan líneas. `registro/RUNS.md` es
   el resumen legible y se regenera solo. Los dos se versionan.
 - Tipos: `validacion` (protocolo estándar de 5 folds y 2 semillas, comparables entre sí),
-  `busqueda` (protocolo liviano de `run_optimizar.py`, no comparable con las anteriores),
-  `control` (semillas nuevas con `run_evaluar_features.py --semillas`, para confirmar que una
+  `control` (semillas nuevas con `run_decisiones.py --semillas`, para confirmar que una
   mejora no fue suerte de los folds estándar) y `submission` (siempre atada a una corrida de
-  validación).
-- Scripts: `run_validar_modelo.py`, `run_optimizar.py`, `run_submission.py`. Después de
-  subir una submission a Kaggle, anotar el puntaje con `run_submission.py --anotar`.
+  validación). Las filas `busqueda` son históricas: el script que las generó ya no está.
+- Scripts: `run_validar_modelo.py`, `run_submission.py`. Después de subir una submission a
+  Kaggle, anotar el puntaje con `run_submission.py --anotar`.
 - Para elegir modelo se comparan solo corridas de tipo `validacion`.
 - Los modelos de un ensamble no se eligen mirando su resultado sobre los datos de evaluación
   (recomendación de la cátedra): se decide la composición de antemano.
