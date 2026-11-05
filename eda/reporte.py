@@ -1,8 +1,17 @@
 """Acumula texto, tablas y figuras del EDA y los vuelca a un reporte markdown."""
 
 from pathlib import Path
+import re
 
 import matplotlib.pyplot as plt
+
+
+def mostrar_markdown(texto, carpeta):
+    """Muestra un reporte en un notebook, con sus figuras dentro de la celda."""
+    from IPython.display import Image, Markdown, display  # Solo hace falta dentro de un notebook
+    for trozo in re.split(r"(!\[.*?\]\(figuras/[^)]+\))", texto):
+        figura = re.search(r"\((figuras/[^)]+)\)", trozo) if trozo.startswith("![") else None
+        display(Image(filename=Path(carpeta) / figura.group(1)) if figura else Markdown(trozo))
 
 
 class Reporte:
@@ -12,6 +21,12 @@ class Reporte:
         self.carpeta_figuras.mkdir(parents=True, exist_ok=True)
         self.partes = [f"# {titulo}\n"]
         self.n_secciones = 0
+        self.ya_mostradas = 0
+
+    def mostrar(self):
+        """Muestra en el notebook lo agregado desde la última vez."""
+        mostrar_markdown("\n".join(self.partes[self.ya_mostradas:]), self.carpeta)
+        self.ya_mostradas = len(self.partes)
 
     def seccion(self, titulo, nivel=2):
         # Las secciones principales se numeran solas, en el orden en que se agregan

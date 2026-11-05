@@ -7,3 +7,6 @@ matplotlib
 seaborn
 pyarrow
 tabulate
+ipykernel
+nbclient
+nbformat
