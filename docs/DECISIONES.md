@@ -1,12 +1,12 @@
 # Decisiones y sus tests
 
-Generado por `python correr.py decisiones`.
+Generado por `notebooks/06_decisiones.ipynb`.
 
-Cada decisión se prueba dos veces. Primero con los folds de siempre (semillas 0 y 1) y después con folds nuevos (semillas 2 y 3), para confirmar que una mejora no fue suerte de cómo cayeron los folds. Las decisiones sobre los datos y las comparaciones registradas antes tienen una sola medición.
+Cada decisión se prueba dos veces. Primero con los folds de siempre (seeds 0 y 1) y después con folds nuevos (seeds 2 y 3), para confirmar que una mejora no fue suerte de cómo cayeron los folds. Las decisiones sobre los datos y las comparaciones registradas antes tienen una sola medición.
 
 Las comparaciones de modelos usan el t pareado corregido de Nadeau y Bengio sobre los 10 folds, con corrección de Holm por la cantidad de tests (su p ya está ajustado). La diferencia es con la pieza menos sin la pieza, en puntos de accuracy, casi siempre medida con LightGBM.
 
-Los veredictos posibles son **respaldada** (al conservar, la pieza suma de forma significativa; al descartar, no se demostró que sume), **sin respaldo** (se conserva algo sin una mejora demostrada), **contradicha** (el test indica lo contrario) y **sin test**.
+Los veredictos posibles son **respaldada** (al conservar, la pieza suma de forma significativa, y al descartar, no se demostró que sume), **sin respaldo** (se conserva algo sin una mejora demostrada), **contradicha** (el test indica lo contrario) y **sin test**.
 
 Un p alto no prueba que una pieza no aporte, porque con 10 folds y tantos tests solo se detectan las diferencias grandes. Además, sacar una pieza sola subestima su aporte si otra lleva información parecida, por eso algunas se prueban juntas.
 
@@ -51,7 +51,7 @@ Con los folds de siempre hay 43 respaldada, 20 sin respaldo. Con folds nuevos ha
 | D51      | No adoptar los hiperparámetros de la última búsqueda                                                     | t corregido, +0.001 ± 0.025 puntos                  | 1.000   | respaldada   |                                    |                      |                              |
 | D52      | Cortar en 0.5 y no en 0.48, el mejor valor visto                                                         | McNemar, diferencia +0.019 puntos                   | 0.182   | respaldada   |                                    |                      |                              |
 | D53      | Conservar fotos, ubicación, tasa del vendedor y fechas, porque sacarlas juntas pierde más de 0.02 puntos | t corregido, +0.029 ± 0.035 puntos                  | 1.000   | sin respaldo |                                    |                      |                              |
-| D60      | Sacar el modelo de texto (en LightGBM; además fue pedido tuyo)                                           | t corregido, +0.041 ± 0.048 puntos                  | 1.000   | respaldada   |                                    |                      |                              |
+| D60      | Sacar el modelo de texto, medido con LightGBM                                                            | t corregido, +0.041 ± 0.048 puntos                  | 1.000   | respaldada   |                                    |                      |                              |
 | D61      | Sacar las pseudo-etiquetas                                                                               | t corregido, +0.044 ± 0.034 puntos                  | 1.000   | respaldada   |                                    |                      |                              |
 | D62      | Sacar Random Forest frente a LightGBM                                                                    | t corregido, -0.780 ± 0.087 puntos                  | < 0.001 | respaldada   |                                    |                      |                              |
 | D63      | Sacar Extra Trees frente a LightGBM                                                                      | t corregido, -0.730 ± 0.090 puntos                  | < 0.001 | respaldada   |                                    |                      |                              |
@@ -75,5 +75,5 @@ Con los folds de siempre hay 43 respaldada, 20 sin respaldo. Con folds nuevos ha
 | D89      | No limpiar etiquetas invirtiendo las dudosas al 95%                                                      | t corregido, -0.154 ± 0.039 puntos                  | 0.145   | respaldada   |                                    |                      |                              |
 | D90      | No hacer stacking de los cuatro modelos                                                                  | t corregido, -0.222 ± 0.052 puntos                  | 0.089   | respaldada   |                                    |                      |                              |
 | D91      | No entrenar un modelo por segmento de stock                                                              | t corregido, -0.101 ± 0.026 puntos                  | 0.155   | respaldada   |                                    |                      |                              |
-| D92      | No promediar varias semillas de LightGBM                                                                 | t corregido, +0.018 ± 0.032 puntos                  | 1.000   | respaldada   |                                    |                      |                              |
+| D92      | No promediar varias seeds de LightGBM                                                                    | t corregido, +0.018 ± 0.032 puntos                  | 1.000   | respaldada   |                                    |                      |                              |
 | D93      | 5 sub-folds y no 10 en el target encoding                                                                | t corregido, -0.009 ± 0.034 puntos                  | 1.000   | respaldada   |                                    |                      |                              |
