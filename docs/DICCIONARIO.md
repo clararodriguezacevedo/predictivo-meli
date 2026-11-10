@@ -26,9 +26,9 @@ Documento fijo, con los significados de `diccionario.py` y estadísticas calcula
 | Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
 |---|---|---|---|---|---|---|
 | `id` | JSON | texto | 0.0% | 100,000 | `MLA3911152707`, `MLA1133955308`, `MLA3705853907` | Id de la publicación (`MLA` + número). En este dataset está anonimizado. El número es aleatorio y no guarda relación con la fecha ni con el target. |
-| `seller_id` | JSON | numérica | 0.0% | 35,915 | 1e+09 / 5.522e+09 / 1e+10 | Id del vendedor (anonimizado). Su valor numérico no significa nada, pero como clave para agrupar es de lo más informativo, porque los vendedores suelen vender solo nuevos o solo usados. |
+| `seller_id` | JSON | numérica | 0.0% | 35,915 | 1e+09 / 5.522e+09 / 1e+10 | Id del vendedor (anonimizado). Su valor numérico no significa nada, pero como clave para agrupar es muy útil, porque los vendedores suelen vender solo nuevos o solo usados. |
 | `category_id` | JSON | texto | 0.0% | 10,907 | `MLA1227`, `MLA2044`, `MLA41287` | Categoría hoja del árbol de categorías de MercadoLibre Argentina (por ejemplo MLA1227 son libros, según sus títulos). El dataset no trae el nombre de la categoría. |
-| `parent_item_id` | JSON | texto | 23.0% | 76,989 | `MLA8336077177`, `MLA2970364564`, `MLA8680365117` | Si el item es una **republicación**, id de la publicación original ("item padre") que fue cerrada y vuelta a publicar. La republicación crea un item nuevo con otro id y puede heredar visitas y ventas del padre. Nulo si es una publicación original. |
+| `parent_item_id` | JSON | texto | 23.0% | 76,989 | `MLA8336077177`, `MLA2970364564`, `MLA8680365117` | Si el item es una republicación, id de la publicación original ("item padre") que fue cerrada y vuelta a publicar. La republicación crea un item nuevo con otro id y puede heredar visitas y ventas del padre. Nulo si es una publicación original. |
 | `official_store_id` | JSON | numérica | 99.2% | 198 | 1024 / 6043 / 9996 | Id de la Tienda Oficial (marcas o comercios verificados por MercadoLibre) que publica el item. Nulo si no es tienda oficial. |
 | `catalog_product_id` | JSON | numérica | 100.0% | 9 | `5093232.0`, `3051112.0`, `5126117.0` | Id del producto de catálogo de MercadoLibre al que está asociada la publicación. Casi siempre nulo (7 items en train). |
 
@@ -87,7 +87,7 @@ Documento fijo, con los significados de `diccionario.py` y estadísticas calcula
 |---|---|---|---|---|---|---|
 | `price` | JSON | numérica | 0.0% | 10,331 | 0.84 / 250 / 2.222e+09 | Precio actual de la publicación, en la moneda de `currency_id`. En subastas es la puja actual. |
 | `base_price` | JSON | numérica | 0.0% | 10,330 | 0.84 / 250 / 2.222e+09 | Precio base. Igual a `price` salvo en 18 subastas, donde es la oferta inicial (muchas veces 1 peso). |
-| `original_price` | JSON | numérica | 99.9% | 114 | 120 / 858 / 1.4e+04 | Precio anterior a un descuento (el "precio tachado"). Solo existe si el item está en oferta; en esos 103 casos `price` es menor. Todos son nuevos. |
+| `original_price` | JSON | numérica | 99.9% | 114 | 120 / 858 / 1.4e+04 | Precio anterior a un descuento (el "precio tachado"). Solo existe si el item está en oferta, y en esos 103 casos `price` es menor. Todos son nuevos. |
 | `currency_id` | JSON | texto | 0.0% | 2 | `ARS`, `USD` | Moneda del precio. Los 399 items en dólares son todos clasificados (autos, inmuebles). |
 
 | Valor de `currency_id` | Significado |
@@ -110,7 +110,7 @@ Documento fijo, con los significados de `diccionario.py` y estadísticas calcula
 | `date_created` | JSON | fecha | 0.0% | 87,075 | 2013-05-21 a 2015-10-15 | Fecha y hora (UTC) de creación de la publicación. Casi todo el dataset es de agosto a octubre de 2015. |
 | `last_updated` | JSON | fecha | 0.0% | 95,124 | 2014-11-11 a 2015-10-15 | Fecha y hora (UTC) de la última modificación de la publicación (precio, stock, descripción, estado). |
 | `start_time` | JSON | fecha | 0.0% | 86,628 | 2013-05-21 a 2015-10-15 | Inicio de la vigencia de la publicación. Viene en milisegundos epoch y se convierte a fecha. Coincide con `date_created` (diferencia menor a 5 segundos) en el 99.5% de los casos. |
-| `stop_time` | JSON | fecha | 0.0% | 86,165 | 2015-10-14 a 2024-11-04 | Vencimiento programado de la publicación. En los datos la duración es de 60 días en el 97% de los casos; hay algunas de 7, 30 y 365 días. |
+| `stop_time` | JSON | fecha | 0.0% | 86,165 | 2015-10-14 a 2024-11-04 | Vencimiento programado de la publicación. En los datos la duración es de 60 días en el 97% de los casos, y hay algunas de 7, 30 y 365 días. |
 
 ## Ubicación del vendedor
 
@@ -170,7 +170,7 @@ Documento fijo, con los significados de `diccionario.py` y estadísticas calcula
 | `warranty` | JSON | texto | 60.9% | 10,263 | `Sí`, `Sin garantía`, `SI` | Texto libre sobre la garantía ("6 meses de garantía", "Sin garantía"). Nulo si el vendedor no lo completó (61% de los items). |
 | `video_id` | JSON | texto | 97.0% | 2,077 | `QQNfOicE_o8`, `EVCQuwl7RIE`, `mYNRC5Ia1sk` | Id de un video de YouTube asociado a la publicación. Nulo si no tiene. |
 | `n_descriptions` | aplanado | numérica | 0.0% | 2 | `1`, `0` | Cantidad de descripciones (0 o 1). El JSON solo trae el id de la descripción, no su texto. |
-| `n_attributes` | aplanado | numérica | 0.0% | 55 | 0 / 0 / 81 | Cantidad de atributos de la ficha técnica (`attributes`). Casi siempre 0; los valores altos corresponden a fichas de vehículos (65 atributos) e inmuebles. |
+| `n_attributes` | aplanado | numérica | 0.0% | 55 | 0 / 0 / 81 | Cantidad de atributos de la ficha técnica (`attributes`). Casi siempre 0. Los valores altos corresponden a fichas de vehículos (65 atributos) e inmuebles. |
 | `n_pictures` | aplanado | numérica | 0.0% | 32 | 0 / 2 / 36 | Cantidad de fotos de la publicación. |
 | `pic_max_ancho` | aplanado | numérica | 0.8% | 1,141 | 1 / 900 / 1200 | Ancho máximo en píxeles (de `max_size`) entre las fotos del item. Refleja la resolución con la que se subió la foto. |
 | `pic_max_alto` | aplanado | numérica | 0.8% | 1,140 | 1 / 900 / 1200 | Alto máximo en píxeles (de `max_size`) entre las fotos del item. |
@@ -202,7 +202,7 @@ Documento fijo, con los significados de `diccionario.py` y estadísticas calcula
 |---|---|---|---|---|---|---|
 | `iq_es_1` | feature | bool | 0.0% | 2 | `True`, `False` | Vale `initial_quantity == 1`, o sea que la publicación es de una unidad única. |
 | `vendio_algo` | feature | bool | 0.0% | 2 | `False`, `True` | `sold_quantity > 0`. |
-| `stock_desbalance` | feature | numérica | 0.0% | 313 | 0 / 0 / 8542 | `available - (initial - sold)`. Es 0 si el stock solo bajó por ventas; positivo si el vendedor repuso stock (huella de comercio). |
+| `stock_desbalance` | feature | numérica | 0.0% | 313 | 0 / 0 / 8542 | `available - (initial - sold)`. Es 0 si el stock solo bajó por ventas y positivo si el vendedor repuso stock (típico de comercios). |
 | `log_price` | feature | numérica | 0.0% | 10,331 | 0.6098 / 5.525 / 21.52 | `log(1 + price)`. Comprime la escala, que va de menos de 1 peso a miles de millones. |
 | `price_con_decimales` | feature | bool | 0.0% | 2 | `False`, `True` | El precio tiene centavos (199.99). Típico de comercios. |
 | `price_termina_en_9` | feature | bool | 0.0% | 2 | `False`, `True` | La parte entera del precio termina en 9 (349, 1999). Precio psicológico de comercio. |
@@ -213,7 +213,7 @@ Documento fijo, con los significados de `diccionario.py` y estadísticas calcula
 | `dia_semana` | feature | numérica | 0.0% | 7 | `1`, `0`, `2` | Día de la semana de creación en horario argentino (0 = lunes). |
 | `duracion_resto_seg` | feature | numérica | 0.0% | 2,507 | 0 / 0 / 8.64e+04 | Segundos que sobran de la duración (`stop_time - start_time`) después de contar los días enteros. El 96% de las publicaciones dura un número exacto de días (resto 0). Con un resto de 1 a 60 segundos el 98% son usadas (99.7% en las bronze). No se sabe qué proceso de MercadoLibre genera ese desfasaje. |
 | `dias_update_a_fin` | feature | numérica | 0.0% | 33,776 | -0.0002662 / 60 / 3457 | Días entre `last_updated` y `stop_time`. Las publicaciones editadas cerca de su vencimiento tienen menos usados (37% contra 57%). |
-| `seg_creacion_a_inicio` | feature | numérica | 0.0% | 426 | -7 / 0 / 2.994e+06 | Segundos entre `date_created` y `start_time`. Casi siempre es 0; cuando la publicación arranca después de creada hay más usados. |
+| `seg_creacion_a_inicio` | feature | numérica | 0.0% | 426 | -7 / 0 / 2.994e+06 | Segundos entre `date_created` y `start_time`. Casi siempre es 0. Cuando la publicación arranca después de creada hay más usados. |
 | `dia_creacion` | feature | numérica | 0.0% | 304 | -590 / 259 / 287 | Días desde el 1 de enero de 2015 hasta la creación. |
 | `hora_update` | feature | numérica | 0.0% | 24 | 0 / 14 / 23 | Hora de la última actualización en horario argentino (UTC-3). |
 | `title_len` | feature | numérica | 0.0% | 94 | 1 / 48 / 100 | Largo del título en caracteres. |
@@ -265,7 +265,7 @@ Documento fijo, con los significados de `diccionario.py` y estadísticas calcula
 | `seller_frac_w_plazo` | feature | numérica | 0.0% | 136 | 0 / 0 / 1 | Fracción de las publicaciones del vendedor cuya garantía indica un plazo. |
 | `seller_mediana_log_price` | feature | numérica | 0.0% | 7,671 | 0.6931 / 5.421 / 21.52 | Mediana del `log_price` de las publicaciones del vendedor. |
 | `seller_n_categorias` | feature | numérica | 0.0% | 63 | 1 / 4 / 100 | Cantidad de categorías distintas en las que publica el vendedor. |
-| `seller_ratio_categorias` | feature | numérica | 0.0% | 446 | 0.0059 / 0.8 / 1 | `seller_n_categorias / seller_n_items`. Cerca de 1 es un vendedor que publica cosas variadas (alguien vaciando la casa); cerca de 0, un especialista. |
+| `seller_ratio_categorias` | feature | numérica | 0.0% | 446 | 0.0059 / 0.8 / 1 | `seller_n_categorias / seller_n_items`. Cerca de 1 es un vendedor que publica cosas variadas (alguien vaciando la casa), y cerca de 0, un especialista. |
 | `seller_std_log_price` | feature | numérica | 25.0% | 9,745 | 0 / 0.6624 / 7.173 | Desvío estándar del `log_price` entre las publicaciones del vendedor. Nulo si tiene un solo item. |
 | `seller_max_initial_quantity` | feature | numérica | 0.0% | 341 | 1 / 1 / 9999 | Mayor stock inicial entre todas las publicaciones del vendedor. Si nunca publicó más de 2 unidades de algo, casi seguro es un particular. |
 | `seller_media_n_pictures` | feature | numérica | 0.0% | 859 | 0 / 2.54 / 36 | Promedio de fotos por publicación del vendedor. |
@@ -293,7 +293,7 @@ Documento fijo, con los significados de `diccionario.py` y estadísticas calcula
 | `cat_frac_t_antiguo_coleccion` | feature | numérica | 0.0% | 285 | 0 / 0 / 1 | Fracción de las publicaciones de la categoría cuyo título dice "antiguo", "vintage" o "colección". |
 | `cat_frac_w_plazo` | feature | numérica | 0.0% | 354 | 0 / 0.006006 / 1 | Fracción de las publicaciones de la categoría cuya garantía indica un plazo. |
 | `cat_n_sellers` | feature | numérica | 0.0% | 137 | 1 / 23 / 719 | Cantidad de vendedores distintos en la categoría. |
-| `cat_ratio_sellers` | feature | numérica | 0.0% | 512 | 0.01562 / 0.7742 / 1 | `cat_n_sellers / cat_n_items`. Cerca de 1 es una categoría donde cada vendedor publica un solo item; cerca de 0, una dominada por pocos vendedores. |
+| `cat_ratio_sellers` | feature | numérica | 0.0% | 512 | 0.01562 / 0.7742 / 1 | `cat_n_sellers / cat_n_items`. Cerca de 1 es una categoría donde cada vendedor publica un solo item, y cerca de 0, una dominada por pocos vendedores. |
 | `cat_mediana_log_price` | feature | numérica | 0.0% | 5,093 | 0.6931 / 5.419 / 16.22 | Mediana del `log_price` de la categoría. |
 | `log_price_rel_categoria` | feature | numérica | 0.0% | 51,687 | -11.38 / 0 / 16.65 | Qué tan caro es el item respecto de su categoría (`log_price - cat_mediana_log_price`, 0 = precio típico). |
 
@@ -375,7 +375,7 @@ Documento fijo, con los significados de `diccionario.py` y estadísticas calcula
 
 ## Fuentes
 
-Documentación oficial de la API de MercadoLibre (consultada en octubre de 2026). Describe la API actual; el dataset es de 2015, así que algunos valores (por ejemplo los tipos de publicación) cambiaron de nombre o dejaron de existir.
+Documentación oficial de la API de MercadoLibre (consultada en octubre de 2026). Describe la API actual, pero el dataset es de 2015, así que algunos valores (por ejemplo los tipos de publicación) cambiaron de nombre o dejaron de existir.
 
 - https://developers.mercadolibre.com.ar/es_ar/envios-personalizados
 - https://developers.mercadolibre.com.ar/es_ar/mercadoenvios-modo-1

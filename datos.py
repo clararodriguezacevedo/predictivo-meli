@@ -1,8 +1,4 @@
-"""Todo lo que no usa el target, desde las rutas y la carga de los JSON hasta las features.
-
-Se lee en orden. Primero las rutas y constantes, después cómo se aplana cada item del JSON y al final
-las features, que salen del propio item o de perfiles calculados sobre train + test.
-"""
+"""Todo lo que no usa el target, desde las rutas y la carga de los JSON hasta las features"""
 
 from pathlib import Path
 import json
@@ -37,7 +33,7 @@ SEED = 42
 # Carga, del JSON crudo a una fila por item
 # ----------------------------------------------------------------------------
 
-# Las seis primeras son constantes o vacías (D02); las URL no aportaron como variables (D70, D80)
+# Las seis primeras son constantes o vacías (D02). Las URL no aportaron como variables (D70, D80)
 COLUMNAS_DESCARTADAS = [
     "site_id", "listing_source", "international_delivery_mode", "coverage_areas",
     "differential_pricing", "subtitle", "permalink", "thumbnail", "secure_thumbnail",
@@ -71,7 +67,7 @@ def _nombre(d, clave):
 
 
 def _tamanio(foto, campo="max_size"):
-    """(ancho, alto) de una foto, o (nan, nan) si no está."""
+    """(ancho, alto) de una foto, o (nan, nan) si no está"""
     try:
         ancho, alto = foto.get(campo, "").split("x")
         return int(ancho), int(alto)
@@ -121,7 +117,7 @@ def _a_numero(texto):
 
 
 def _aplanar_atributos(atributos):
-    """Valores de la ficha técnica que hablan de la condición del item."""
+    """Valores de la ficha técnica sobre la condición del item"""
     # Se buscan por nombre porque los ids cambian entre categorías
     valores = {a.get("name"): (a.get("value_name") or "").strip() for a in atributos}
     unico_duenio = valores.get("Único dueño")
@@ -137,7 +133,7 @@ def _aplanar_atributos(atributos):
 
 
 def aplanar_item(r):
-    """Un item crudo (dict) a un dict plano de una sola fila."""
+    """Un item crudo (dict) a un dict plano de una sola fila"""
     fila = {
         k: v for k, v in r.items()
         if not isinstance(v, (list, dict)) and k not in COLUMNAS_DESCARTADAS
@@ -185,7 +181,7 @@ def _tipar(df):
 
 
 def cargar(split="train", usar_cache=True):
-    """DataFrame aplanado de "train" o "test". Se cachea porque parsear el JSON es lento."""
+    """DataFrame aplanado de "train" o "test". Se cachea porque parsear el JSON es lento"""
     rutas = {"train": TRAIN_RAW, "test": TEST_RAW}
     cache = DATA_PROCESSED / f"{split}.parquet"
     if usar_cache and cache.exists():
@@ -210,7 +206,7 @@ ANIO_DATOS = 2015
 # Proporciones de cámara (4:3 y 16:9, horizontales o verticales), a 2 decimales
 ASPECTOS_DE_CAMARA = [1.33, 1.34, 0.75, 0.74, 1.78, 1.79, 0.56]
 
-# Sobre el título normalizado; "como nuevo" se separa de "nuevo" porque significa lo contrario (D20)
+# Sobre el título normalizado. "Como nuevo" se separa de "nuevo" porque significa lo contrario (D20)
 PATRONES_TITULO = {
     "t_nuevo": r"(?<!como )(?<!igual a )(?<!casi )\bnuev[oa]s?\b",
     "t_usado": r"\busad[oa]s?\b|segunda mano",
@@ -234,7 +230,7 @@ PATRONES_GARANTIA = {
 
 
 def normalizar_texto(serie):
-    """Minúsculas y sin tildes, para que los patrones no dependan de la escritura."""
+    """Minúsculas y sin tildes, para que los patrones no dependan de la escritura"""
     def _normalizar(texto):
         sin_tildes = unicodedata.normalize("NFKD", texto.lower())
         return sin_tildes.encode("ascii", "ignore").decode()
@@ -242,7 +238,7 @@ def normalizar_texto(serie):
 
 
 def agregar_features_texto(df):
-    """Banderas por palabras clave en título y garantía."""
+    """Banderas por palabras clave en título y garantía"""
     df = df.copy()
     titulo = normalizar_texto(df["title"])
     for nombre, patron in PATRONES_TITULO.items():
@@ -254,7 +250,7 @@ def agregar_features_texto(df):
 
 
 def agregar_features_atributos(df):
-    """Ficha técnica de vehículos e inmuebles (D18)."""
+    """Ficha técnica de vehículos e inmuebles (D18)"""
     df = df.copy()
     df["attr_es_0km"] = df["attr_kilometros"] == 0
     df["attr_anios_de_uso"] = ANIO_DATOS - df["attr_anio"]
@@ -263,7 +259,7 @@ def agregar_features_atributos(df):
 
 
 def agregar_features_item(df):
-    """Features de un solo item, sin mirar otras filas (D19)."""
+    """Features de un solo item, sin mirar otras filas (D19)"""
     df = df.copy()
 
     # Reponer stock deja available > initial - sold
@@ -315,7 +311,7 @@ def agregar_features_item(df):
     return df
 
 
-# Describen cómo publica el vendedor, no qué condición declaró
+# Describen cómo publica el vendedor, sin usar la condición
 INDICADORES = {
     "free": lambda df: df["listing_type_id"] == "free",
     "bronze": lambda df: df["listing_type_id"] == "bronze",
@@ -336,7 +332,7 @@ INDICADORES_CATEGORIA = [
     "foto_cuadrada", "t_nuevo", "t_estado_de_uso", "t_antiguo_coleccion", "w_plazo",
 ]
 INDICADORES_PALABRA = ["free", "iq_1", "price_decimales", "repuso_stock", "foto_cuadrada"]
-# Con menos títulos, el perfil de una palabra es puro ruido
+# Con menos títulos, el perfil de una palabra es poco confiable
 MIN_TITULOS_POR_PALABRA = 5
 
 
@@ -345,7 +341,7 @@ def _indicadores(df):
 
 
 def _perfil_vendedor(todo, indicadores):
-    """Cómo publica cada vendedor (D21)."""
+    """Cómo publica cada vendedor (D21)"""
     g = todo.groupby("seller_id")
     perfil = indicadores.groupby(todo["seller_id"]).mean().add_prefix("seller_frac_")
     perfil["seller_n_items"] = g.size()
@@ -362,7 +358,7 @@ def _perfil_vendedor(todo, indicadores):
 
 
 def _perfil_categoria(todo, indicadores):
-    """Cómo se publica en cada categoría (D22)."""
+    """Cómo se publica en cada categoría (D22)"""
     g = todo.groupby("category_id")
     perfil = (indicadores[INDICADORES_CATEGORIA].groupby(todo["category_id"]).mean()
               .add_prefix("cat_frac_"))
@@ -374,7 +370,7 @@ def _perfil_categoria(todo, indicadores):
 
 
 def _perfil_palabras(todo, indicadores):
-    """Qué tipo de producto es, según cómo se publican los títulos con las mismas palabras (D23)."""
+    """Qué tipo de producto es, según cómo se publican los títulos con las mismas palabras (D23)"""
     vectorizador = CountVectorizer(
         binary=True, min_df=MIN_TITULOS_POR_PALABRA, token_pattern=r"[a-z0-9]+"
     )
@@ -403,7 +399,7 @@ def _perfil_palabras(todo, indicadores):
 
 
 def _contexto_por_item(todo):
-    """Features de cada item que dependen de las otras publicaciones."""
+    """Features de cada item que dependen de las otras publicaciones"""
     ctx = pd.DataFrame(index=todo.index)
     titulo = normalizar_texto(todo["title"])
     ctx["titulo_repetido"] = titulo.map(titulo.value_counts())
@@ -424,8 +420,8 @@ def _contexto_por_item(todo):
 
 
 def agregar_perfiles(train, test):
-    """Perfiles sobre train + test, para que también los tengan los vendedores que solo están en test."""
-    # El target se descarta antes de calcular, y run_verificar_leakage.py lo comprueba
+    """Perfiles sobre train + test, para que también los tengan los vendedores que solo están en test"""
+    # El target se descarta antes de calcular, y pruebas.py lo comprueba
     todo = pd.concat(
         [train.drop(columns=[TARGET], errors="ignore"), test], ignore_index=True
     )
@@ -447,7 +443,7 @@ def agregar_perfiles(train, test):
 
 
 def construir(train, test):
-    """Pipeline completo de features para train y test."""
+    """Pipeline completo de features para train y test"""
     def _por_item(df):
         return agregar_features_atributos(agregar_features_texto(agregar_features_item(df)))
     return agregar_perfiles(_por_item(train), _por_item(test))

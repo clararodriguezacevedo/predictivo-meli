@@ -1,13 +1,8 @@
-"""Diccionario de variables, con lo que significa cada columna del dataset.
+"""Qué significa cada variable y a qué grupo pertenece
 
-Cubre los campos crudos del JSON (incluso los descartados), las columnas que genera el aplanado y las
-features derivadas, todas de `datos.py`, y las de target encoding de `modelo.py`. Los significados se
-apoyan en la documentación oficial de la API de MercadoLibre (ver FUENTES) y en verificaciones sobre
-los datos, indicadas como tales.
-
-El código usa esta lista para saber qué variables forman cada grupo, por ejemplo cuando una prueba saca
-un grupo entero. docs/DICCIONARIO.md es un documento fijo con estos mismos significados y estadísticas
-de los datos, así que una variable nueva se agrega en los dos lugares.
+Los significados salen de la documentación de la API de MercadoLibre (ver FUENTES) y de revisar los
+datos. Las pruebas usan los grupos para sacar varias variables juntas. docs/DICCIONARIO.md es una copia
+fija con estadísticas, así que una variable nueva se agrega en los dos lugares
 """
 
 from dataclasses import dataclass, field
@@ -94,13 +89,13 @@ VARIABLES = [
              "número es aleatorio y no guarda relación con la fecha ni con el target."),
     Variable("seller_id", "Identificadores", CRUDA,
              "Id del vendedor (anonimizado). Su valor numérico no significa nada, pero como "
-             "clave para agrupar es de lo más informativo, porque los vendedores suelen vender "
+             "clave para agrupar es muy útil, porque los vendedores suelen vender "
              "solo nuevos o solo usados."),
     Variable("category_id", "Identificadores", CRUDA,
              "Categoría hoja del árbol de categorías de MercadoLibre Argentina (por ejemplo "
              "MLA1227 son libros, según sus títulos). El dataset no trae el nombre de la categoría."),
     Variable("parent_item_id", "Identificadores", CRUDA,
-             "Si el item es una **republicación**, id de la publicación original (\"item "
+             "Si el item es una republicación, id de la publicación original (\"item "
              "padre\") que fue cerrada y vuelta a publicar. La republicación crea un item "
              "nuevo con otro id y puede heredar visitas y ventas del padre. Nulo si es una "
              "publicación original.", fuentes=("republicar",)),
@@ -165,7 +160,7 @@ VARIABLES = [
              "(muchas veces 1 peso)."),
     Variable("original_price", "Precio y moneda", CRUDA,
              "Precio anterior a un descuento (el \"precio tachado\"). Solo existe si el item "
-             "está en oferta; en esos 103 casos `price` es menor. Todos son nuevos."),
+             "está en oferta, y en esos 103 casos `price` es menor. Todos son nuevos."),
     Variable("currency_id", "Precio y moneda", CRUDA,
              "Moneda del precio. Los 399 items en dólares son todos clasificados (autos, "
              "inmuebles).",
@@ -195,7 +190,7 @@ VARIABLES = [
              "en el 99.5% de los casos."),
     Variable("stop_time", "Fechas", CRUDA,
              "Vencimiento programado de la publicación. En los datos la duración es de 60 "
-             "días en el 97% de los casos; hay algunas de 7, 30 y 365 días."),
+             "días en el 97% de los casos, y hay algunas de 7, 30 y 365 días."),
 
     # Ubicación
     Variable("seller_state", "Ubicación del vendedor", APLANADA,
@@ -256,7 +251,7 @@ VARIABLES = [
              "Cantidad de descripciones (0 o 1). El JSON solo trae el id de la descripción, "
              "no su texto."),
     Variable("n_attributes", "Contenido de la publicación", APLANADA,
-             "Cantidad de atributos de la ficha técnica (`attributes`). Casi siempre 0; los "
+             "Cantidad de atributos de la ficha técnica (`attributes`). Casi siempre 0. Los "
              "valores altos corresponden a fichas de vehículos (65 atributos) e inmuebles."),
     Variable("n_pictures", "Contenido de la publicación", APLANADA,
              "Cantidad de fotos de la publicación."),
@@ -294,8 +289,8 @@ VARIABLES = [
     Variable("vendio_algo", "Features derivadas del item", DERIVADA,
              "`sold_quantity > 0`."),
     Variable("stock_desbalance", "Features derivadas del item", DERIVADA,
-             "`available - (initial - sold)`. Es 0 si el stock solo bajó por ventas; "
-             "positivo si el vendedor repuso stock (huella de comercio)."),
+             "`available - (initial - sold)`. Es 0 si el stock solo bajó por ventas y "
+             "positivo si el vendedor repuso stock (típico de comercios)."),
     Variable("log_price", "Features derivadas del item", DERIVADA,
              "`log(1 + price)`. Comprime la escala, que va de menos de 1 peso a miles de "
              "millones."),
@@ -324,7 +319,7 @@ VARIABLES = [
              "Días entre `last_updated` y `stop_time`. Las publicaciones editadas cerca de "
              "su vencimiento tienen menos usados (37% contra 57%)."),
     Variable("seg_creacion_a_inicio", "Features derivadas del item", DERIVADA,
-             "Segundos entre `date_created` y `start_time`. Casi siempre es 0; cuando la "
+             "Segundos entre `date_created` y `start_time`. Casi siempre es 0. Cuando la "
              "publicación arranca después de creada hay más usados."),
     Variable("dia_creacion", "Features derivadas del item", DERIVADA,
              "Días desde el 1 de enero de 2015 hasta la creación."),
@@ -427,7 +422,7 @@ VARIABLES = [
              "Cantidad de categorías distintas en las que publica el vendedor."),
     Variable("seller_ratio_categorias", "Perfil del vendedor", DERIVADA,
              "`seller_n_categorias / seller_n_items`. Cerca de 1 es un vendedor que publica "
-             "cosas variadas (alguien vaciando la casa); cerca de 0, un especialista."),
+             "cosas variadas (alguien vaciando la casa), y cerca de 0, un especialista."),
 
     Variable("seller_std_log_price", "Perfil del vendedor", DERIVADA,
              "Desvío estándar del `log_price` entre las publicaciones del vendedor. Nulo si "
@@ -464,7 +459,7 @@ VARIABLES = [
              "Cantidad de vendedores distintos en la categoría."),
     Variable("cat_ratio_sellers", "Perfil de la categoría", DERIVADA,
              "`cat_n_sellers / cat_n_items`. Cerca de 1 es una categoría donde cada vendedor "
-             "publica un solo item; cerca de 0, una dominada por pocos vendedores."),
+             "publica un solo item, y cerca de 0, una dominada por pocos vendedores."),
     Variable("cat_mediana_log_price", "Perfil de la categoría", DERIVADA,
              "Mediana del `log_price` de la categoría."),
     Variable("log_price_rel_categoria", "Perfil de la categoría", DERIVADA,

@@ -1,9 +1,4 @@
-"""El modelo. Target encoding, LightGBM, validación y registro de corridas.
-
-Se lee en orden. Primero las features que usan el target, calculadas con folds para que ninguna fila
-vea su propia etiqueta. Después el registro, donde queda anotada cada corrida, y al final el modelo,
-que elige las columnas, une todo, entrena LightGBM y valida.
-"""
+"""Target encoding, registro de corridas, LightGBM y el baseline, en ese orden"""
 
 from datetime import datetime
 import hashlib
@@ -14,8 +9,12 @@ import time
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
+from sklearn.compose import ColumnTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import KFold, StratifiedKFold
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 
 import datos
 
@@ -29,10 +28,10 @@ N_SUBFOLDS = 5
 
 
 class EncoderDeGrupo:
-    """Tasa de usados de un grupo, suavizada hacia la tasa global, y cuántas filas la respaldan."""
+    """Tasa de usados de un grupo, suavizada hacia la tasa global, y cuántas filas la respaldan"""
 
     def __init__(self, *columnas, suavizado=2.0, normalizar=False):
-        # El suavizado existe porque la tasa de un grupo chico no merece tanta confianza (D41)
+        # Se suaviza porque la tasa de un grupo chico es poco confiable (D41)
         self.columnas = list(columnas)
         self.suavizado = suavizado
         self.normalizar = normalizar
@@ -68,7 +67,7 @@ class EncoderDeGrupo:
 
 
 class EncoderDeVecinos:
-    """Tasa de usados de los k títulos más parecidos, o sea si "este producto suele venderse usado" (D32)."""
+    """Tasa de usados de los k títulos más parecidos (D32)"""
 
     def __init__(self, k=10, max_df=0.02, bloque=2000):
         self.k = k
@@ -86,7 +85,7 @@ class EncoderDeVecinos:
         return self
 
     def _vecinos(self, consultas):
-        """Similitud y etiqueta de los k vecinos de cada consulta."""
+        """Similitud y etiqueta de los k vecinos de cada consulta"""
         n = consultas.shape[0]
         similitud = np.zeros((n, self.k))
         etiqueta = np.full((n, self.k), np.nan)
@@ -123,7 +122,7 @@ class EncoderDeVecinos:
 
 
 class EncoderVecinosDelVendedor:
-    """Etiquetas de los items más parecidos del mismo vendedor. Separa a los vendedores mixtos (D34)."""
+    """Etiquetas de los items más parecidos del mismo vendedor, útiles con vendedores mixtos (D34)"""
 
     PRECIO_PARECIDO = 0.2  # Diferencia máxima de log del precio, unos 20%
 
@@ -159,7 +158,7 @@ class EncoderVecinosDelVendedor:
         mas_parecido = p.loc[g["similitud"].idxmax()].set_index("fila")
         out["te_vv_similitud_max"] = mas_parecido["similitud"]
         out["te_vv_y_mas_parecido"] = mas_parecido["y"]
-        peso = p["similitud"] ** 2 + 1e-3  # El cuadrado premia a los muy parecidos; 1e-3 evita dividir por 0
+        peso = p["similitud"] ** 2 + 1e-3  # El cuadrado premia a los muy parecidos y el 1e-3 evita dividir por 0
         out["te_vv_tasa_ponderada"] = (p["y"] * peso).groupby(p["fila"]).sum() / peso.groupby(p["fila"]).sum()
         mas_cercano = p[p["distancia_horas"] == g["distancia_horas"].transform("min")].groupby("fila")
         out["te_vv_y_mas_cercano_en_tiempo"] = mas_cercano["y"].mean()
@@ -180,7 +179,7 @@ class EncoderVecinosDelVendedor:
 
 
 def crear_encoders():
-    """Encoders sin ajustar. Se crean de nuevo para cada fold."""
+    """Encoders sin ajustar. Se crean de nuevo para cada fold"""
     return [
         EncoderDeGrupo("seller_id"),  # D30
         EncoderDeGrupo("category_id"),  # D31
@@ -194,23 +193,30 @@ def crear_encoders():
     ]
 
 
-def subfolds(n_filas, semilla=datos.SEED):
-    """Partición al azar de las filas de entrenamiento. No mira las etiquetas."""
-    return list(KFold(N_SUBFOLDS, shuffle=True, random_state=semilla).split(np.zeros(n_filas)))
+def subfolds(n_filas, seed=datos.SEED):
+    """Partición al azar de las filas de entrenamiento. No mira las etiquetas"""
+    return list(KFold(N_SUBFOLDS, shuffle=True, random_state=seed).split(np.zeros(n_filas)))
 
 
-def codificar(train, y, a_predecir, semilla=datos.SEED, fabrica=crear_encoders):
-    """Features de `train` (por sub-folds) y de `a_predecir` (con las etiquetas de todo `train`)."""
-    def ajustar_y_aplicar(tr, y_tr, destino):
-        return pd.concat([e.fit(tr, y_tr).transform(destino) for e in fabrica()], axis=1)
+def codificar_destino(train, y, destino, fabrica=crear_encoders):
+    """Features de `destino`, con encoders ajustados sobre las etiquetas de todo `train`"""
+    return pd.concat([e.fit(train, y).transform(destino) for e in fabrica()], axis=1)
 
-    partes = [ajustar_y_aplicar(train.iloc[i_ajuste], y.iloc[i_ajuste], train.iloc[i_resto])
-              for i_ajuste, i_resto in subfolds(len(train), semilla)]
-    return pd.concat(partes).loc[train.index], ajustar_y_aplicar(train, y, a_predecir)
+
+def codificar_train(train, y, seed=datos.SEED, fabrica=crear_encoders):
+    """Features de `train`, donde cada fila se codifica con los sub-folds que no la contienen"""
+    partes = [codificar_destino(train.iloc[i_ajuste], y.iloc[i_ajuste], train.iloc[i_resto], fabrica)
+              for i_ajuste, i_resto in subfolds(len(train), seed)]
+    return pd.concat(partes).loc[train.index]
+
+
+def codificar(train, y, a_predecir, seed=datos.SEED, fabrica=crear_encoders):
+    """Features de `train` (por sub-folds) y de `a_predecir` (con las etiquetas de todo `train`)"""
+    return codificar_train(train, y, seed, fabrica), codificar_destino(train, y, a_predecir, fabrica)
 
 
 def descripcion():
-    """Configuración del target encoding, para dejarla anotada en el registro."""
+    """Configuración del target encoding, para dejarla anotada en el registro"""
     return {
         "n_subfolds": N_SUBFOLDS,
         "encoders": [{"tipo": type(e).__name__, **vars(e)} for e in crear_encoders()],
@@ -230,13 +236,13 @@ def _git(*args):
 
 
 def describir_features(columnas):
-    """Cantidad y huella de las columnas, para saber si dos corridas usaron las mismas."""
+    """Cantidad y huella de las columnas, para saber si dos corridas usaron las mismas"""
     columnas = sorted(columnas)
     return {"n": len(columnas), "huella": hashlib.sha1("|".join(columnas).encode()).hexdigest()[:10]}
 
 
 def registrar(tipo, modelo, parametros, **detalles):
-    """Agrega una corrida al registro y devuelve su id."""
+    """Agrega una corrida al registro y devuelve su id"""
     ahora = datetime.now()
     run = {
         "id": f"{ahora:%Y%m%d-%H%M%S}-{tipo}-{modelo}",
@@ -336,7 +342,7 @@ PARAMETROS = dict(
     min_child_samples=5, colsample_bytree=0.6874594323703044, subsample=0.8344766462089817,
     subsample_freq=1, reg_lambda=0.07827034783412899, reg_alpha=0.029235419526953025,
 )
-# Toda corrida "validacion" usa estos 5 folds y 2 semillas, así se comparan de a pares
+# Toda corrida "validacion" usa estos 5 folds y 2 seeds, así se comparan de a pares
 PROTOCOLO_VALIDACION = {"n_folds": 5, "semillas": [0, 1]}
 
 
@@ -344,12 +350,12 @@ def y_binario(df):
     return (df[datos.TARGET] == datos.CLASE_POSITIVA).astype(int)
 
 
-def crear_clasificador(semilla):
-    return lgb.LGBMClassifier(**PARAMETROS, random_state=semilla, n_jobs=8, verbose=-1)
+def crear_clasificador(seed):
+    return lgb.LGBMClassifier(**PARAMETROS, random_state=seed, n_jobs=8, verbose=-1)
 
 
 def preparar(df, niveles=None):
-    """Deja solo las features y tipa las categóricas."""
+    """Deja solo las features y tipa las categóricas"""
     X = df[[c for c in df.columns if c not in NO_SON_FEATURES]].copy()
     for col in CATEGORICAS:
         X[col] = pd.Categorical(X[col], categories=niveles[col] if niveles else None)
@@ -358,38 +364,38 @@ def preparar(df, niveles=None):
 
 
 def preparar_juntos(train, test):
-    """Train y test con los mismos niveles en las categóricas, para predecir el test."""
+    """Train y test con los mismos niveles en las categóricas, para predecir el test"""
     niveles = {c: sorted(set(train[c].dropna()) | set(test[c].dropna())) for c in CATEGORICAS}
     return preparar(train, niveles), preparar(test, niveles)
 
 
-def armar_matrices(X_train, train, y, X_pred, a_predecir, semilla):
-    """Agrega el target encoding. Validar y predecir el test pasan por esta misma función."""
-    te_train, te_pred = codificar(train, y, a_predecir, semilla)
+def armar_matrices(X_train, train, y, X_pred, a_predecir, seed):
+    """Agrega el target encoding. Validar y predecir el test pasan por esta misma función"""
+    te_train, te_pred = codificar(train, y, a_predecir, seed)
     return pd.concat([X_train, te_train], axis=1), pd.concat([X_pred, te_pred], axis=1)
 
 
 def armar_folds(train, y, protocolo):
-    """Lista de (X_train, y_train, X_val, y_val, semilla). Es lo caro, así que se arma una vez y se reutiliza."""
+    """Lista de (X_train, y_train, X_val, y_val, seed). Se arma una vez porque es lento"""
     X = preparar(train)
     folds = []
-    for semilla in protocolo["semillas"]:
-        particion = StratifiedKFold(protocolo["n_folds"], shuffle=True, random_state=semilla)
+    for seed in protocolo["semillas"]:
+        particion = StratifiedKFold(protocolo["n_folds"], shuffle=True, random_state=seed)
         for i_train, i_val in particion.split(X, y):
             # Las etiquetas de validación no entran a ningún cálculo
             X_tr, X_val = armar_matrices(
                 X.iloc[i_train], train.iloc[i_train], y.iloc[i_train],
-                X.iloc[i_val], train.iloc[i_val], semilla,
+                X.iloc[i_val], train.iloc[i_val], seed,
             )
-            folds.append((X_tr, y.iloc[i_train], X_val, y.iloc[i_val], semilla))
+            folds.append((X_tr, y.iloc[i_train], X_val, y.iloc[i_val], seed))
     return folds
 
 
 def validar_en_folds(folds):
-    """Accuracy de cada fold. Corta en 0.5 porque moverlo no mejora (D52)."""
+    """Accuracy de cada fold. Corta en 0.5 porque moverlo no mejora (D52)"""
     aciertos = []
-    for X_tr, y_tr, X_val, y_val, semilla in folds:
-        clasificador = crear_clasificador(semilla).fit(X_tr, y_tr)
+    for X_tr, y_tr, X_val, y_val, seed in folds:
+        clasificador = crear_clasificador(seed).fit(X_tr, y_tr)
         aciertos.append(float((clasificador.predict(X_val) == y_val).mean()))
     return aciertos
 
@@ -399,7 +405,7 @@ def resumir(aciertos):
 
 
 def descripcion_comun(folds, protocolo):
-    """Detalles que van al registro además del modelo y sus parámetros."""
+    """Detalles que van al registro además del modelo y sus parámetros"""
     return {
         "protocolo": protocolo,
         "target_encoding": descripcion(),
@@ -408,7 +414,7 @@ def descripcion_comun(folds, protocolo):
 
 
 def validar(train, y, protocolo=PROTOCOLO_VALIDACION, anotar=True, nota=""):
-    """Validación cruzada del modelo completo. Devuelve (accuracy, error estándar)."""
+    """Validación cruzada del modelo completo. Devuelve (accuracy, error estándar)"""
     inicio = time.time()
     folds = armar_folds(train, y, protocolo)
     aciertos = validar_en_folds(folds)
@@ -423,13 +429,77 @@ def validar(train, y, protocolo=PROTOCOLO_VALIDACION, anotar=True, nota=""):
 
 
 def predecir_en_folds(folds):
-    """Probabilidad de cada fila, predicha por un modelo que no la vio. Para analizar errores."""
+    """Probabilidad de cada fila, predicha por un modelo que no la vio. Para analizar errores"""
     partes = []
-    for X_tr, y_tr, X_val, y_val, semilla in folds:
-        clasificador = crear_clasificador(semilla).fit(X_tr, y_tr)
+    for X_tr, y_tr, X_val, y_val, seed in folds:
+        clasificador = crear_clasificador(seed).fit(X_tr, y_tr)
         parte = X_val[[c for c in X_val.columns if c.startswith("te_")]].copy()
         parte["proba_usado"] = clasificador.predict_proba(X_val)[:, 1]
         parte["y"] = y_val
-        parte["semilla"] = semilla
+        parte["seed"] = seed
         partes.append(parte)
     return pd.concat(partes)
+
+
+def entrenar_final(train, test, y, seed=datos.SEED):
+    """El modelo final, entrenado con todo train. El test entra sin etiquetas, solo para los niveles"""
+    X_train, _ = preparar_juntos(train, test)
+    # Cada fila de train se codifica con sub-folds que no la contienen, igual que en la validación
+    X_train = X_train.join(codificar_train(train, y, seed))
+    return crear_clasificador(seed).fit(X_train, y)
+
+
+def predecir_test(clasificador, train, test, y):
+    """Predice el test y lo deja con el formato de Kaggle"""
+    _, X_test = preparar_juntos(train, test)
+    # El test se codifica con las etiquetas de todo train
+    X_test = X_test.join(codificar_destino(train, y, test))
+    es_usado = clasificador.predict(X_test[clasificador.feature_name_]) == 1
+    # Kaggle numera las filas del test desde 1, no usa el id de MercadoLibre
+    return pd.DataFrame({
+        "ID": range(1, len(test) + 1),
+        datos.TARGET: pd.Series(es_usado).map({True: datos.CLASE_POSITIVA, False: "new"}),
+    })
+
+# ----------------------------------------------------------------------------
+# Baseline, la referencia contra la que se mide todo lo demás
+# ----------------------------------------------------------------------------
+
+# Seis variables crudas del item, sin perfiles ni target encoding. Se entrena en segundos
+BASELINE_CATEGORICAS = ["listing_type_id", "buying_mode"]
+BASELINE_NUMERICAS = ["tiene_warranty", "es_tienda_oficial", "initial_quantity", "sold_quantity"]
+
+
+def crear_baseline():
+    """Regresión logística, con las cantidades en escala logarítmica"""
+    numericas = make_pipeline(FunctionTransformer(np.log1p), StandardScaler())
+    columnas = ColumnTransformer([
+        ("categoricas", OneHotEncoder(handle_unknown="ignore"), BASELINE_CATEGORICAS),
+        ("numericas", numericas, BASELINE_NUMERICAS),
+    ])
+    return make_pipeline(columnas, LogisticRegression(max_iter=1000))
+
+
+def validar_baseline(train, y, protocolo=PROTOCOLO_VALIDACION):
+    """Valida el baseline con los mismos folds que el modelo final y la anota en el registro"""
+    X = train[BASELINE_CATEGORICAS + BASELINE_NUMERICAS].copy()
+    X[BASELINE_CATEGORICAS] = X[BASELINE_CATEGORICAS].astype(str)
+    X[BASELINE_NUMERICAS] = X[BASELINE_NUMERICAS].astype(float)
+    aciertos, mayoritaria = [], []
+    for seed in protocolo["semillas"]:
+        particion = StratifiedKFold(protocolo["n_folds"], shuffle=True, random_state=seed)
+        for i_train, i_val in particion.split(X, y):
+            clasificador = crear_baseline().fit(X.iloc[i_train], y.iloc[i_train])
+            aciertos.append(float((clasificador.predict(X.iloc[i_val]) == y.iloc[i_val]).mean()))
+            # El piso, predecir siempre la clase más frecuente del fold de entrenamiento
+            clase = int(y.iloc[i_train].mean() > 0.5)
+            mayoritaria.append(float((y.iloc[i_val] == clase).mean()))
+    accuracy, error = resumir(aciertos)
+    registrar(
+        "validacion", "baseline", {"modelo": "regresion_logistica", "max_iter": 1000},
+        accuracy=accuracy, error_estandar=error, accuracy_por_fold=aciertos,
+        accuracy_clase_mayoritaria=float(np.mean(mayoritaria)), protocolo=protocolo,
+        features=describir_features(BASELINE_CATEGORICAS + BASELINE_NUMERICAS),
+        nota="baseline, regresión logística con seis variables crudas",
+    )
+    return accuracy, error, float(np.mean(mayoritaria))
