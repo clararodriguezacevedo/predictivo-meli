@@ -351,7 +351,9 @@ def y_binario(df):
 
 
 def crear_clasificador(seed):
-    return lgb.LGBMClassifier(**PARAMETROS, random_state=seed, n_jobs=8, verbose=-1)
+    # Modo determinista, para que el modelo final salga igual en cualquier máquina y con cualquier cantidad de núcleos
+    return lgb.LGBMClassifier(**PARAMETROS, random_state=seed, n_jobs=8, verbose=-1,
+                              deterministic=True, force_row_wise=True)
 
 
 def preparar(df, niveles=None):
