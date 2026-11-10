@@ -9,7 +9,7 @@ python correr.py entrenar --validacion 20261110-001656-validacion-lightgbm
 python correr.py predecir
 ```
 
-`entrenar` entrena el modelo final con todo train y lo guarda en `outputs/modelo/lightgbm.joblib`, atado a la validación que lo respalda. `predecir` lo carga, lo aplica al test y escribe el archivo en `outputs/submissions/`, idéntico al enviado a Kaggle. La lógica de los dos está en `entrenar_final` y `predecir_test`, en la sección del modelo de `modelo.py`. La presentación está en `presentacion/`.
+`entrenar` entrena el modelo final con todo train y lo guarda en `outputs/modelo/lightgbm.joblib`, atado a la validación que lo respalda. `predecir` lo carga, lo aplica al test y escribe el archivo en `outputs/submissions/`, idéntico al enviado a Kaggle. La lógica de los dos está en `entrenar_final` y `predecir_test`, en la sección del modelo de `modelo.py`.
 
 ## El recorrido
 
