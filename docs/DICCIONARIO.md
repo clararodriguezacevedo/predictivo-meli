@@ -1,14 +1,14 @@
 # Diccionario de variables
 
-Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadísticas se calculan sobre train + test juntos (100.000 items). La columna *Resumen* muestra mínimo / mediana / máximo para numéricas y los valores más frecuentes para el resto.
+Documento fijo, con los significados de `diccionario.py` y estadísticas calculadas sobre train + test juntos (100.000 items). Una variable nueva se agrega acá y en `diccionario.py`. La columna *Resumen* muestra mínimo / mediana / máximo para numéricas y los valores más frecuentes para el resto.
 
 | Origen | Significado |
 |---|---|
 | JSON | campo de primer nivel del JSON original, sin cambios |
-| aplanado | extraído de un campo anidado (listas o diccionarios) en `carga.py` |
-| feature | calculada en `features.py`, sin usar el target |
+| aplanado | extraído de un campo anidado (listas o diccionarios) en `datos.py` |
+| feature | calculada en `datos.py`, sin usar el target |
 | descartada | campo del JSON que no se carga por ser constante o redundante |
-| con target | usa `condition`, se calcula con folds en `target_encoding.py` |
+| con target | usa `condition`, se calcula con folds en `modelo.py` |
 
 ## Target
 
@@ -25,8 +25,8 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 
 | Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
 |---|---|---|---|---|---|---|
-| `id` | JSON | texto | 0.0% | 100,000 | `MLA3911152707`, `MLA1133955308`, `MLA3705853907` | Id de la publicación (`MLA` + número). En este dataset está anonimizado: el número es aleatorio y no guarda relación con la fecha ni con el target. |
-| `seller_id` | JSON | numérica | 0.0% | 35,915 | 1e+09 / 5.522e+09 / 1e+10 | Id del vendedor (anonimizado). Su valor numérico no significa nada, pero como clave para agrupar es de lo más informativo: los vendedores suelen vender solo nuevos o solo usados. |
+| `id` | JSON | texto | 0.0% | 100,000 | `MLA3911152707`, `MLA1133955308`, `MLA3705853907` | Id de la publicación (`MLA` + número). En este dataset está anonimizado. El número es aleatorio y no guarda relación con la fecha ni con el target. |
+| `seller_id` | JSON | numérica | 0.0% | 35,915 | 1e+09 / 5.522e+09 / 1e+10 | Id del vendedor (anonimizado). Su valor numérico no significa nada, pero como clave para agrupar es de lo más informativo, porque los vendedores suelen vender solo nuevos o solo usados. |
 | `category_id` | JSON | texto | 0.0% | 10,907 | `MLA1227`, `MLA2044`, `MLA41287` | Categoría hoja del árbol de categorías de MercadoLibre Argentina (por ejemplo MLA1227 son libros, según sus títulos). El dataset no trae el nombre de la categoría. |
 | `parent_item_id` | JSON | texto | 23.0% | 76,989 | `MLA8336077177`, `MLA2970364564`, `MLA8680365117` | Si el item es una **republicación**, id de la publicación original ("item padre") que fue cerrada y vuelta a publicar. La republicación crea un item nuevo con otro id y puede heredar visitas y ventas del padre. Nulo si es una publicación original. |
 | `official_store_id` | JSON | numérica | 99.2% | 198 | 1024 / 6043 / 9996 | Id de la Tienda Oficial (marcas o comercios verificados por MercadoLibre) que publica el item. Nulo si no es tienda oficial. |
@@ -193,14 +193,14 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `attr_unico_duenio` | aplanado | texto | 99.3% | 2 | `True`, `False` | Si el vehículo tuvo un único dueño (True / False). Nulo si no se informa. |
 | `attr_numero_pieza` | aplanado | bool | 0.0% | 2 | `False`, `True` | La ficha incluye el número de pieza del fabricante. Típico de repuestos nuevos de comercios. |
 | `attr_es_0km` | feature | bool | 0.0% | 2 | `False`, `True` | `attr_kilometros == 0`. |
-| `attr_anios_de_uso` | feature | numérica | 98.7% | 53 | 0 / 5 / 115 | `2015 - attr_anio`: años de uso del vehículo al momento de publicar. |
+| `attr_anios_de_uso` | feature | numérica | 98.7% | 53 | 0 / 5 / 115 | Años de uso del vehículo al momento de publicar (`2015 - attr_anio`). |
 | `attr_a_estrenar` | feature | bool | 0.0% | 2 | `False`, `True` | `attr_antiguedad == "A estrenar"`. |
 
 ## Features derivadas del item
 
 | Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
 |---|---|---|---|---|---|---|
-| `iq_es_1` | feature | bool | 0.0% | 2 | `True`, `False` | `initial_quantity == 1`: la publicación es de una unidad única. |
+| `iq_es_1` | feature | bool | 0.0% | 2 | `True`, `False` | Vale `initial_quantity == 1`, o sea que la publicación es de una unidad única. |
 | `vendio_algo` | feature | bool | 0.0% | 2 | `False`, `True` | `sold_quantity > 0`. |
 | `stock_desbalance` | feature | numérica | 0.0% | 313 | 0 / 0 / 8542 | `available - (initial - sold)`. Es 0 si el stock solo bajó por ventas; positivo si el vendedor repuso stock (huella de comercio). |
 | `log_price` | feature | numérica | 0.0% | 10,331 | 0.6098 / 5.525 / 21.52 | `log(1 + price)`. Comprime la escala, que va de menos de 1 peso a miles de millones. |
@@ -208,7 +208,7 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `price_termina_en_9` | feature | bool | 0.0% | 2 | `False`, `True` | La parte entera del precio termina en 9 (349, 1999). Precio psicológico de comercio. |
 | `price_multiplo_100` | feature | bool | 0.0% | 2 | `False`, `True` | El precio es múltiplo de 100. Típico de particulares que redondean. |
 | `dias_hasta_update` | feature | numérica | 0.0% | 33,949 | -1.157e-05 / 5.787e-05 / 875.7 | Días entre `date_created` y `last_updated`. Mide cuánto tiempo después de publicar el vendedor siguió editando. |
-| `duracion_dias` | feature | numérica | 0.0% | 275 | 0 / 60 / 3457 | Días entre `start_time` y `stop_time`: la vigencia programada. |
+| `duracion_dias` | feature | numérica | 0.0% | 275 | 0 / 60 / 3457 | Días entre `start_time` y `stop_time`, o sea la vigencia programada. |
 | `hora_creacion` | feature | numérica | 0.0% | 24 | 0 / 14 / 23 | Hora de creación en horario argentino (UTC-3). |
 | `dia_semana` | feature | numérica | 0.0% | 7 | `1`, `0`, `2` | Día de la semana de creación en horario argentino (0 = lunes). |
 | `duracion_resto_seg` | feature | numérica | 0.0% | 2,507 | 0 / 0 / 8.64e+04 | Segundos que sobran de la duración (`stop_time - start_time`) después de contar los días enteros. El 96% de las publicaciones dura un número exacto de días (resto 0). Con un resto de 1 a 60 segundos el 98% son usadas (99.7% en las bronze). No se sabe qué proceso de MercadoLibre genera ese desfasaje. |
@@ -224,7 +224,7 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `tiene_warranty` | feature | bool | 0.0% | 2 | `False`, `True` | `warranty` no es nulo. |
 | `tiene_video` | feature | bool | 0.0% | 2 | `False`, `True` | `video_id` no es nulo. |
 | `es_tienda_oficial` | feature | bool | 0.0% | 2 | `False`, `True` | `official_store_id` no es nulo. |
-| `tiene_parent` | feature | bool | 0.0% | 2 | `True`, `False` | `parent_item_id` no es nulo: el item es una republicación. |
+| `tiene_parent` | feature | bool | 0.0% | 2 | `True`, `False` | `parent_item_id` no es nulo, o sea que el item es una republicación. |
 
 ## Palabras clave en título y garantía
 
@@ -232,7 +232,7 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 |---|---|---|---|---|---|---|
 | `t_nuevo` | feature | bool | 0.0% | 2 | `False`, `True` | El título dice "nuevo/a/os/as", excluyendo "como nuevo", "igual a nuevo" y "casi nuevo". |
 | `t_usado` | feature | bool | 0.0% | 2 | `False`, `True` | El título dice "usado/a" o "segunda mano". |
-| `t_estado_de_uso` | feature | bool | 0.0% | 2 | `False`, `True` | El título describe el estado de algo ya usado: "como nuevo", "igual a nuevo", "poco uso", "impecable", "estado". |
+| `t_estado_de_uso` | feature | bool | 0.0% | 2 | `False`, `True` | El título describe el estado de algo ya usado, con frases como "como nuevo", "igual a nuevo", "poco uso", "impecable", "estado". |
 | `t_0km_a_estrenar` | feature | bool | 0.0% | 2 | `False`, `True` | El título dice "0 km" o "a estrenar". |
 | `t_sellado_en_caja` | feature | bool | 0.0% | 2 | `False`, `True` | El título dice "sellado", "blister" o "en caja". |
 | `t_mayorista` | feature | bool | 0.0% | 2 | `False`, `True` | El título habla de venta por mayor o por cantidad ("por mayor", "x 10 unidades"). |
@@ -295,7 +295,7 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 | `cat_n_sellers` | feature | numérica | 0.0% | 137 | 1 / 23 / 719 | Cantidad de vendedores distintos en la categoría. |
 | `cat_ratio_sellers` | feature | numérica | 0.0% | 512 | 0.01562 / 0.7742 / 1 | `cat_n_sellers / cat_n_items`. Cerca de 1 es una categoría donde cada vendedor publica un solo item; cerca de 0, una dominada por pocos vendedores. |
 | `cat_mediana_log_price` | feature | numérica | 0.0% | 5,093 | 0.6931 / 5.419 / 16.22 | Mediana del `log_price` de la categoría. |
-| `log_price_rel_categoria` | feature | numérica | 0.0% | 51,687 | -11.38 / 0 / 16.65 | `log_price - cat_mediana_log_price`: qué tan caro es el item respecto de su categoría (0 = precio típico). |
+| `log_price_rel_categoria` | feature | numérica | 0.0% | 51,687 | -11.38 / 0 / 16.65 | Qué tan caro es el item respecto de su categoría (`log_price - cat_mediana_log_price`, 0 = precio típico). |
 
 ## Perfil por palabra del título
 
@@ -329,7 +329,7 @@ Generado por `run_diccionario.py` a partir de `diccionario.py`. Las estadística
 
 | Variable | Origen | Tipo | Nulos | Únicos | Resumen | Significado |
 |---|---|---|---|---|---|---|
-| `te_seller_id` | con target |  |  |  |  | Tasa de usados del vendedor, suavizada hacia la tasa global cuando tiene pocos items. Se calcula solo con etiquetas de otras filas: por sub-folds para el entrenamiento y con todo el entrenamiento para validación o test. Nulo si el vendedor no tiene ningún item con etiqueta. |
+| `te_seller_id` | con target |  |  |  |  | Tasa de usados del vendedor, suavizada hacia la tasa global cuando tiene pocos items. Se calcula solo con etiquetas de otras filas, por sub-folds para el entrenamiento y con todo el entrenamiento para validación o test. Nulo si el vendedor no tiene ningún item con etiqueta. |
 | `te_seller_id_n` | con target |  |  |  |  | Cantidad de items con etiqueta del vendedor en los que se apoya `te_seller_id`. Le dice al modelo cuánto confiar en esa tasa. |
 | `te_category_id` | con target |  |  |  |  | Tasa de usados de la categoría, calculada igual que `te_seller_id`. |
 | `te_category_id_n` | con target |  |  |  |  | Cantidad de items con etiqueta de la categoría en los que se apoya `te_category_id`. |
