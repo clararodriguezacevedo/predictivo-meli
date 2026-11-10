@@ -221,7 +221,7 @@ Resumen generado desde `runs.jsonl`.
 | 20261102-120209-submission-ensamble | outputs/submissions/20261102-120209-ensamble.csv | 20261102-115951-validacion-ensamble   |                   0.9474 | 0.94761               |
 | 20261102-201303-submission-ensamble | outputs/submissions/20261102-201303-ensamble.csv | 20261102-115951-validacion-ensamble   |                   0.9474 | sin cargar            |
 | 20261104-132134-submission-lightgbm | outputs/submissions/20261104-132134-lightgbm.csv | 20261104-131600-validacion-lightgbm   |                   0.947  | sin cargar            |
-| 20261110-002606-submission-lightgbm | outputs/submissions/20261110-002606-lightgbm.csv | 20261110-001656-validacion-lightgbm   |                   0.947  | sin cargar            |
+| 20261110-002606-submission-lightgbm | outputs/submissions/20261110-002606-lightgbm.csv | 20261110-001656-validacion-lightgbm   |                   0.947  | 0.9479                |
 | 20261110-181454-submission-lightgbm | outputs/submissions/20261110-181454-lightgbm.csv | 20261110-001656-validacion-lightgbm   |                   0.947  | sin cargar            |
 
 ## Búsqueda de hiperparámetros (las 15 mejores de cada modelo)
