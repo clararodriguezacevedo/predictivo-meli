@@ -1,32 +1,41 @@
 # Clasificador de items nuevos y usados de MercadoLibre
 
-Para entender el trabajo, leer los notebooks en orden. Para ver cómo está hecho cada paso, leer los módulos que cada notebook importa.
+Para entender el trabajo, leer los notebooks en orden. Para ver cómo está hecho cada paso, leer el módulo que cada notebook importa. Cada módulo está dividido en secciones que se leen de arriba abajo.
+
+## Los archivos
+
+| Archivo | Qué tiene |
+|---|---|
+| `datos.py` | Todo lo que no usa el target. Rutas, carga de los JSON y features |
+| `modelo.py` | Target encoding, LightGBM, validación y registro de corridas |
+| `pruebas.py` | Tests estadísticos, la lista de decisiones y los controles de leakage |
+| `diccionario.py` | Qué significa cada variable y a qué grupo pertenece |
+| `correr.py` | Las tareas que entrenan o registran algo, cada una con su orden |
 
 ## Los notebooks
 
-| Notebook | Qué cuenta | Módulos que usa |
+| Notebook | Qué cuenta | Usa |
 |---|---|---|
-| `notebooks/01_datos.ipynb` | Del JSON crudo a una tabla | `config.py`, `carga.py` |
-| `notebooks/02_exploracion.ipynb` | Qué separa a nuevos de usados | `eda/` |
-| `notebooks/03_features.ipynb` | Variables que no usan el target | `features.py`, `diccionario.py` |
-| `notebooks/04_target_encoding.ipynb` | Variables que usan el target, sin filtrarlo | `target_encoding.py` |
-| `notebooks/05_modelo_y_validacion.ipynb` | El modelo y cómo se mide | `modelo.py`, `registro.py` |
-| `notebooks/06_decisiones.ipynb` | El test detrás de cada decisión | `estadistica.py`, `decisiones.py` |
-| `notebooks/07_errores.ipynb` | En qué items falla | `errores.py` |
-| `notebooks/08_submission.ipynb` | Del modelo al archivo para Kaggle | `run_submission.py` |
+| `notebooks/01_datos.ipynb` | Del JSON crudo a una tabla | `datos.py` |
+| `notebooks/02_exploracion.ipynb` | Qué separa a nuevos de usados | `datos.py` (el análisis está en el notebook) |
+| `notebooks/03_features.ipynb` | Variables que no usan el target | `datos.py`, `diccionario.py` |
+| `notebooks/04_target_encoding.ipynb` | Variables que usan el target, sin filtrarlo | `modelo.py` |
+| `notebooks/05_modelo_y_validacion.ipynb` | El modelo y cómo se mide | `modelo.py` |
+| `notebooks/06_decisiones.ipynb` | El test detrás de cada decisión | `pruebas.py` |
+| `notebooks/07_errores.ipynb` | En qué items falla | `modelo.py` (el análisis está en el notebook) |
+| `notebooks/08_submission.ipynb` | Del modelo al archivo para Kaggle | `modelo.py` |
 
-Los notebooks no entrenan el modelo final: leen los resultados del registro, para abrirse y correrse rápido. Lo que tarda horas está en los scripts.
+Los notebooks no entrenan el modelo final. Leen los resultados del registro, así se abren y corren rápido. Lo que tarda se corre con `correr.py`.
 
-## Los scripts
+## Las tareas
 
-| Script | Para qué |
+| Orden | Para qué |
 |---|---|
-| `run_verificar_leakage.py` | Comprueba que el modelo no filtre el target |
-| `run_validar_modelo.py` | Valida el modelo final y lo registra |
-| `run_decisiones.py` | Corre los tests y genera `docs/DECISIONES.md` |
-| `run_submission.py` | Genera el archivo para Kaggle y anota su puntaje |
-| `run_analizar_errores.py` | Genera el reporte de errores |
-| `run_eda.py` | Genera el reporte de exploración |
-| `run_diccionario.py` | Genera `docs/DICCIONARIO.md` |
+| `python correr.py leakage` | Comprueba que el modelo no filtre el target |
+| `python correr.py validar --nota "..."` | Valida el modelo final y lo registra |
+| `python correr.py decisiones` | Corre los tests y genera `docs/DECISIONES.md` |
+| `python correr.py errores` | Calcula las predicciones que analiza el notebook 07 |
+| `python correr.py submission --validacion ID` | Genera el archivo para Kaggle |
+| `python correr.py anotar ID --puntaje 0.95` | Anota el puntaje de Kaggle de una submission |
 
-Los comentarios del código citan el código de la decisión, por ejemplo `D25`. Cada corrida queda en `registro/runs.jsonl`, y `registro/RUNS.md` es su resumen.
+Los comentarios del código citan el código de la decisión, por ejemplo `D25`. Cada corrida queda en `registro/runs.jsonl`, y `registro/RUNS.md` es su resumen. `docs/DICCIONARIO.md` es un documento fijo con el significado de cada variable.

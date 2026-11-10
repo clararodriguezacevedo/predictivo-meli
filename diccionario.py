@@ -1,20 +1,20 @@
-"""Diccionario de variables: qué significa cada columna del dataset.
+"""Diccionario de variables, con lo que significa cada columna del dataset.
 
-Cubre los campos crudos del JSON (incluso los descartados), las columnas que genera
-el aplanado en `carga.py` y las features derivadas de `features.py`. Los
-significados se apoyan en la documentación oficial de la API de MercadoLibre
-(ver FUENTES) y en verificaciones sobre los datos, indicadas como tales.
+Cubre los campos crudos del JSON (incluso los descartados), las columnas que genera el aplanado y las
+features derivadas, todas de `datos.py`, y las de target encoding de `modelo.py`. Los significados se
+apoyan en la documentación oficial de la API de MercadoLibre (ver FUENTES) y en verificaciones sobre
+los datos, indicadas como tales.
 
-`run_diccionario.py` combina estas definiciones con estadísticas reales y genera
-docs/DICCIONARIO.md.
+El código usa esta lista para saber qué variables forman cada grupo, por ejemplo cuando una prueba saca
+un grupo entero. docs/DICCIONARIO.md es un documento fijo con estos mismos significados y estadísticas
+de los datos, así que una variable nueva se agrega en los dos lugares.
 """
 
 from dataclasses import dataclass, field
 
-import features
-from carga import MEDIOS_DE_PAGO
+import datos
 
-# Qué mide cada indicador de `features.INDICADORES`, para describir los perfiles
+# Qué mide cada indicador de `datos.INDICADORES`, para describir los perfiles
 DESCRIPCION_INDICADOR = {
     "free": "que son `free`",
     "bronze": "que son `bronze`",
@@ -30,7 +30,7 @@ DESCRIPCION_INDICADOR = {
     "t_antiguo_coleccion": 'cuyo título dice "antiguo", "vintage" o "colección"',
     "w_plazo": "cuya garantía indica un plazo",
 }
-assert set(DESCRIPCION_INDICADOR) == set(features.INDICADORES)
+assert set(DESCRIPCION_INDICADOR) == set(datos.INDICADORES)
 
 FUENTES = {
     "tipos": "https://developers.mercadolibre.com.ar/es_ar/tipos-de-publicacion-y-actualizaciones-de-articulos",
@@ -42,12 +42,11 @@ FUENTES = {
 
 # Origen de cada variable
 CRUDA = "JSON"          # campo de primer nivel del JSON, sin cambios
-APLANADA = "aplanado"   # extraída de un campo anidado en carga.py
-DERIVADA = "feature"    # calculada en features.py
+APLANADA = "aplanado"   # extraída de un campo anidado en datos.py
+DERIVADA = "feature"    # calculada en datos.py
 DESCARTADA = "descartada"
-CON_TARGET = "con target"  # calculada con folds en target_encoding.py
+CON_TARGET = "con target"  # calculada con folds en modelo.py
 # Orígenes que no son columnas del dataset de features y no tienen estadísticas
-SIN_ESTADISTICAS = (DESCARTADA, CON_TARGET)
 
 GRUPOS = [
     "Target",
@@ -91,11 +90,11 @@ VARIABLES = [
 
     # Identificadores
     Variable("id", "Identificadores", CRUDA,
-             "Id de la publicación (`MLA` + número). En este dataset está anonimizado: el "
+             "Id de la publicación (`MLA` + número). En este dataset está anonimizado. El "
              "número es aleatorio y no guarda relación con la fecha ni con el target."),
     Variable("seller_id", "Identificadores", CRUDA,
              "Id del vendedor (anonimizado). Su valor numérico no significa nada, pero como "
-             "clave para agrupar es de lo más informativo: los vendedores suelen vender "
+             "clave para agrupar es de lo más informativo, porque los vendedores suelen vender "
              "solo nuevos o solo usados."),
     Variable("category_id", "Identificadores", CRUDA,
              "Categoría hoja del árbol de categorías de MercadoLibre Argentina (por ejemplo "
@@ -241,7 +240,7 @@ VARIABLES = [
         Variable(f"pay_{codigo}", "Medios de pago", APLANADA,
                  f"Si el vendedor acepta \"{descripcion}\" como medio de pago por fuera de "
                  "MercadoPago.")
-        for codigo, descripcion in MEDIOS_DE_PAGO.items()
+        for codigo, descripcion in datos.MEDIOS_DE_PAGO.items()
     ],
 
     # Contenido
@@ -291,7 +290,7 @@ VARIABLES = [
 
     # Features derivadas del item
     Variable("iq_es_1", "Features derivadas del item", DERIVADA,
-             "`initial_quantity == 1`: la publicación es de una unidad única."),
+             "Vale `initial_quantity == 1`, o sea que la publicación es de una unidad única."),
     Variable("vendio_algo", "Features derivadas del item", DERIVADA,
              "`sold_quantity > 0`."),
     Variable("stock_desbalance", "Features derivadas del item", DERIVADA,
@@ -311,7 +310,7 @@ VARIABLES = [
              "Días entre `date_created` y `last_updated`. Mide cuánto tiempo después de "
              "publicar el vendedor siguió editando."),
     Variable("duracion_dias", "Features derivadas del item", DERIVADA,
-             "Días entre `start_time` y `stop_time`: la vigencia programada."),
+             "Días entre `start_time` y `stop_time`, o sea la vigencia programada."),
     Variable("hora_creacion", "Features derivadas del item", DERIVADA,
              "Hora de creación en horario argentino (UTC-3)."),
     Variable("dia_semana", "Features derivadas del item", DERIVADA,
@@ -350,7 +349,7 @@ VARIABLES = [
     Variable("es_tienda_oficial", "Features derivadas del item", DERIVADA,
              "`official_store_id` no es nulo."),
     Variable("tiene_parent", "Features derivadas del item", DERIVADA,
-             "`parent_item_id` no es nulo: el item es una republicación."),
+             "`parent_item_id` no es nulo, o sea que el item es una republicación."),
 
     # Ficha técnica
     Variable("attr_kilometros", "Ficha técnica (vehículos, inmuebles y repuestos)", APLANADA,
@@ -372,18 +371,18 @@ VARIABLES = [
     Variable("attr_es_0km", "Ficha técnica (vehículos, inmuebles y repuestos)", DERIVADA,
              "`attr_kilometros == 0`."),
     Variable("attr_anios_de_uso", "Ficha técnica (vehículos, inmuebles y repuestos)", DERIVADA,
-             "`2015 - attr_anio`: años de uso del vehículo al momento de publicar."),
+             "Años de uso del vehículo al momento de publicar (`2015 - attr_anio`)."),
     Variable("attr_a_estrenar", "Ficha técnica (vehículos, inmuebles y repuestos)", DERIVADA,
              "`attr_antiguedad == \"A estrenar\"`."),
 
-    # Palabras clave (patrones en features.PATRONES_TITULO y PATRONES_GARANTIA)
+    # Palabras clave (patrones en datos.PATRONES_TITULO y PATRONES_GARANTIA)
     Variable("t_nuevo", "Palabras clave en título y garantía", DERIVADA,
              "El título dice \"nuevo/a/os/as\", excluyendo \"como nuevo\", \"igual a nuevo\" "
              "y \"casi nuevo\"."),
     Variable("t_usado", "Palabras clave en título y garantía", DERIVADA,
              "El título dice \"usado/a\" o \"segunda mano\"."),
     Variable("t_estado_de_uso", "Palabras clave en título y garantía", DERIVADA,
-             "El título describe el estado de algo ya usado: \"como nuevo\", \"igual a nuevo\", "
+             "El título describe el estado de algo ya usado, con frases como \"como nuevo\", \"igual a nuevo\", "
              "\"poco uso\", \"impecable\", \"estado\"."),
     Variable("t_0km_a_estrenar", "Palabras clave en título y garantía", DERIVADA,
              "El título dice \"0 km\" o \"a estrenar\"."),
@@ -459,7 +458,7 @@ VARIABLES = [
     *[
         Variable(f"cat_frac_{ind}", "Perfil de la categoría", DERIVADA,
                  f"Fracción de las publicaciones de la categoría {DESCRIPCION_INDICADOR[ind]}.")
-        for ind in features.INDICADORES_CATEGORIA
+        for ind in datos.INDICADORES_CATEGORIA
     ],
     Variable("cat_n_sellers", "Perfil de la categoría", DERIVADA,
              "Cantidad de vendedores distintos en la categoría."),
@@ -469,8 +468,8 @@ VARIABLES = [
     Variable("cat_mediana_log_price", "Perfil de la categoría", DERIVADA,
              "Mediana del `log_price` de la categoría."),
     Variable("log_price_rel_categoria", "Perfil de la categoría", DERIVADA,
-             "`log_price - cat_mediana_log_price`: qué tan caro es el item respecto de su "
-             "categoría (0 = precio típico)."),
+             "Qué tan caro es el item respecto de su categoría "
+             "(`log_price - cat_mediana_log_price`, 0 = precio típico)."),
 
     # Perfil por palabra del título
     *[
@@ -478,7 +477,7 @@ VARIABLES = [
                  f"Para cada palabra del título se calcula la fracción de las *otras* "
                  f"publicaciones que la contienen {DESCRIPCION_INDICADOR[ind]}. Esta variable "
                  f"es {texto} de esos valores entre las palabras del título.")
-        for ind in features.INDICADORES_PALABRA
+        for ind in datos.INDICADORES_PALABRA
         for resumen, texto in [("media", "el promedio"), ("max", "el máximo")]
     ],
 
@@ -504,10 +503,10 @@ VARIABLES = [
              "El lado más largo entre todas las fotos, en su resolución original "
              "(`max_size`). El tope de MercadoLibre es 1200 px."),
 
-    # Target encoding: no están en features.construir, se calculan dentro de cada fold
+    # Las de target encoding no están en datos.construir, se calculan dentro de cada fold
     Variable("te_seller_id", "Target encoding (con folds)", CON_TARGET,
              "Tasa de usados del vendedor, suavizada hacia la tasa global cuando tiene "
-             "pocos items. Se calcula solo con etiquetas de otras filas: por sub-folds para "
+             "pocos items. Se calcula solo con etiquetas de otras filas, por sub-folds para "
              "el entrenamiento y con todo el entrenamiento para validación o test. Nulo si "
              "el vendedor no tiene ningún item con etiqueta."),
     Variable("te_seller_id_n", "Target encoding (con folds)", CON_TARGET,

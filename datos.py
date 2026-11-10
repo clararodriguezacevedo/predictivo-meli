@@ -1,5 +1,12 @@
-"""Features sin target: del item y perfiles calculados sobre train + test. Códigos en docs/DECISIONES.md."""
+"""Todo lo que no usa el target, desde las rutas y la carga de los JSON hasta las features.
 
+Se lee en orden. Primero las rutas y constantes, después cómo se aplana cada item del JSON y al final
+las features, que salen del propio item o de perfiles calculados sobre train + test.
+"""
+
+from pathlib import Path
+import json
+import re
 import unicodedata
 
 import numpy as np
@@ -7,7 +14,195 @@ import pandas as pd
 import scipy.sparse as sp
 from sklearn.feature_extraction.text import CountVectorizer
 
-import config
+
+# ----------------------------------------------------------------------------
+# Rutas y constantes
+# ----------------------------------------------------------------------------
+
+RAIZ = Path(__file__).resolve().parent
+
+DATA_RAW = RAIZ / "data" / "raw"
+DATA_PROCESSED = RAIZ / "data" / "processed"
+OUTPUTS = RAIZ / "outputs"
+DOCS = RAIZ / "docs"
+
+TRAIN_RAW = DATA_RAW / "train_data.jsonlines"
+TEST_RAW = DATA_RAW / "test_data.jsonlines"
+
+TARGET = "condition"
+CLASE_POSITIVA = "used"
+SEED = 42
+
+# ----------------------------------------------------------------------------
+# Carga, del JSON crudo a una fila por item
+# ----------------------------------------------------------------------------
+
+# Las seis primeras son constantes o vacías (D02); las URL no aportaron como variables (D70, D80)
+COLUMNAS_DESCARTADAS = [
+    "site_id", "listing_source", "international_delivery_mode", "coverage_areas",
+    "differential_pricing", "subtitle", "permalink", "thumbnail", "secure_thumbnail",
+]
+
+# Medios de pago por fuera de MercadoPago (id y descripción del JSON)
+MEDIOS_DE_PAGO = {
+    "MLAMO": "Efectivo",
+    "MLATB": "Transferencia bancaria",
+    "MLAOT": "Tarjeta de crédito",
+    "MLAWC": "Acordar con el comprador",
+    "MLAWT": "Giro postal",
+    "MLAMP": "MercadoPago",
+    "MLAVS": "Visa",
+    "MLAMC": "MasterCard",
+    "MLAVE": "Visa Electron",
+    "MLAMS": "Mastercard Maestro",
+    "MLACD": "Contra reembolso",
+    "MLAAM": "American Express",
+    "MLADC": "Diners",
+    "MLABC": "Cheque certificado",
+}
+
+# Los ids de foto nuevos terminan en mes y año, como "111301-MLA20304563887_052015"
+_RE_FOTO_FECHA = re.compile(r"_(\d{2})(\d{4})$")
+
+
+def _nombre(d, clave):
+    valor = (d or {}).get(clave) or {}
+    return valor.get("name") or None
+
+
+def _tamanio(foto, campo="max_size"):
+    """(ancho, alto) de una foto, o (nan, nan) si no está."""
+    try:
+        ancho, alto = foto.get(campo, "").split("x")
+        return int(ancho), int(alto)
+    except ValueError:
+        return np.nan, np.nan
+
+
+def _aplanar_fotos(fotos):
+    tamanios = [_tamanio(f) for f in fotos]
+    anchos = [a for a, _ in tamanios if not np.isnan(a)]
+    altos = [h for _, h in tamanios if not np.isnan(h)]
+    fechas = [_RE_FOTO_FECHA.search(f.get("id", "")) for f in fotos]
+    fechas = [int(m.group(2)) * 12 + int(m.group(1)) - 1 for m in fechas if m]
+    # size tiene lado mayor de 500 px como máximo, pero conserva la proporción original
+    mostrados = [t for t in (_tamanio(f, "size") for f in fotos) if not np.isnan(t[0])]
+    return {
+        "n_pictures": len(fotos),
+        "pic0_ancho": mostrados[0][0] if mostrados else np.nan,
+        "pic0_alto": mostrados[0][1] if mostrados else np.nan,
+        "pic_frac_cuadradas": (
+            sum(a == h for a, h in mostrados) / len(mostrados) if mostrados else np.nan
+        ),
+        "pic_n_tamanios": len(set(mostrados)),
+        "pic_max_ancho": max(anchos) if anchos else np.nan,
+        "pic_max_alto": max(altos) if altos else np.nan,
+        "pic_min_lado": min(min(a, h) for a, h in zip(anchos, altos)) if anchos else np.nan,
+        "pic_frac_id_fechado": len(fechas) / len(fotos) if fotos else np.nan,
+        "pic_mes_mas_viejo": min(fechas) if fechas else np.nan,  # En meses absolutos
+    }
+
+
+def _aplanar_variaciones(variaciones):
+    precios = [v.get("price") for v in variaciones if v.get("price") is not None]
+    return {
+        "n_variations": len(variaciones),
+        "var_sold_quantity": sum(v.get("sold_quantity") or 0 for v in variaciones),
+        "var_available_quantity": sum(v.get("available_quantity") or 0 for v in variaciones),
+        "var_n_precios_distintos": len(set(precios)),
+    }
+
+
+def _a_numero(texto):
+    try:
+        return float(str(texto).replace(".", "").replace(",", "."))
+    except ValueError:
+        return np.nan
+
+
+def _aplanar_atributos(atributos):
+    """Valores de la ficha técnica que hablan de la condición del item."""
+    # Se buscan por nombre porque los ids cambian entre categorías
+    valores = {a.get("name"): (a.get("value_name") or "").strip() for a in atributos}
+    unico_duenio = valores.get("Único dueño")
+    return {
+        "n_attributes": len(atributos),
+        "attr_kilometros": _a_numero(valores["Kilómetros"]) if "Kilómetros" in valores else np.nan,
+        "attr_anio": _a_numero(valores["Año"]) if "Año" in valores else np.nan,
+        "attr_antiguedad": valores.get("Antigüedad") or None,  # "A estrenar", ..., "Más de 40 años"
+        "attr_estado": valores.get("Estado del inmueble") or valores.get("Estado") or None,
+        "attr_unico_duenio": {"Sí": True, "No": False}.get(unico_duenio),
+        "attr_numero_pieza": "Número pieza" in valores or "Número de pieza" in valores,
+    }
+
+
+def aplanar_item(r):
+    """Un item crudo (dict) a un dict plano de una sola fila."""
+    fila = {
+        k: v for k, v in r.items()
+        if not isinstance(v, (list, dict)) and k not in COLUMNAS_DESCARTADAS
+    }
+
+    fila["seller_state"] = _nombre(r.get("seller_address"), "state")
+
+    envio = r.get("shipping") or {}
+    fila["ship_local_pick_up"] = envio.get("local_pick_up")
+    fila["ship_free_shipping"] = envio.get("free_shipping")
+    fila["ship_mode"] = envio.get("mode")
+    fila["ship_has_dimensions"] = envio.get("dimensions") is not None
+    fila["ship_has_free_methods"] = bool(envio.get("free_methods"))
+    fila["ship_tags"] = "|".join(envio.get("tags") or [])
+
+    medios = {m["id"] for m in r.get("non_mercado_pago_payment_methods") or []}
+    fila["n_payment_methods"] = len(medios)
+    for medio in MEDIOS_DE_PAGO:
+        fila[f"pay_{medio}"] = medio in medios
+
+    fila["tags"] = "|".join(sorted(r.get("tags") or []))
+    fila["sub_status"] = "|".join(r.get("sub_status") or [])
+    fila["n_deal_ids"] = len(r.get("deal_ids") or [])
+    fila["n_descriptions"] = len(r.get("descriptions") or [])
+
+    fila.update(_aplanar_atributos(r.get("attributes") or []))
+    fila.update(_aplanar_fotos(r.get("pictures") or []))
+    fila.update(_aplanar_variaciones(r.get("variations") or []))
+    return fila
+
+
+def _leer_jsonlines(ruta):
+    with open(ruta, encoding="utf8") as f:
+        return pd.DataFrame(aplanar_item(json.loads(linea)) for linea in f)
+
+
+def _tipar(df):
+    for col in ["date_created", "last_updated"]:
+        df[col] = pd.to_datetime(df[col], utc=True).dt.tz_localize(None)
+    for col in ["start_time", "stop_time"]:
+        df[col] = pd.to_datetime(df[col], unit="ms")
+    for col in ["warranty", "video_id", "parent_item_id"]:
+        df[col] = df[col].replace("", None)  # Vienen vacíos en lugar de nulos
+    return df
+
+
+def cargar(split="train", usar_cache=True):
+    """DataFrame aplanado de "train" o "test". Se cachea porque parsear el JSON es lento."""
+    rutas = {"train": TRAIN_RAW, "test": TEST_RAW}
+    cache = DATA_PROCESSED / f"{split}.parquet"
+    if usar_cache and cache.exists():
+        return pd.read_parquet(cache)
+
+    df = _tipar(_leer_jsonlines(rutas[split]))
+    DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(cache, index=False)
+    return df
+
+
+def cargar_train_test(usar_cache=True):
+    return cargar("train", usar_cache), cargar("test", usar_cache)
+
+# ----------------------------------------------------------------------------
+# Features sin target (códigos en docs/DECISIONES.md)
+# ----------------------------------------------------------------------------
 
 # Casi todo se publicó en 2015
 ANIO_DATOS = 2015
@@ -71,14 +266,14 @@ def agregar_features_item(df):
     """Features de un solo item, sin mirar otras filas (D19)."""
     df = df.copy()
 
-    # Stock: reponer deja available > initial - sold
+    # Reponer stock deja available > initial - sold
     df["iq_es_1"] = df["initial_quantity"] == 1
     df["vendio_algo"] = df["sold_quantity"] > 0
     df["stock_desbalance"] = (
         df["available_quantity"] - (df["initial_quantity"] - df["sold_quantity"])
     )
 
-    # Precio: los comercios usan precios "psicológicos", los particulares redondean
+    # Los comercios usan precios "psicológicos" y los particulares redondean
     df["log_price"] = np.log1p(df["price"])
     df["price_con_decimales"] = df["price"] % 1 != 0
     df["price_termina_en_9"] = df["price"].astype(np.int64) % 10 == 9
@@ -107,13 +302,13 @@ def agregar_features_item(df):
     df["warranty_len"] = df["warranty"].fillna("").str.len()
     df["tiene_warranty"] = df["warranty"].notna()  # La ausencia informa (D03)
 
-    # Fotos: las de catálogo suelen ser cuadradas, las de celular 4:3 o 16:9 (D24)
+    # Las fotos de catálogo suelen ser cuadradas, las de celular 4:3 o 16:9 (D24)
     df["pic0_aspecto"] = df["pic0_ancho"] / df["pic0_alto"]
     df["pic_tiene_cuadrada"] = df["pic_frac_cuadradas"] > 0
     df["pic_aspecto_camara"] = df["pic0_aspecto"].round(2).isin(ASPECTOS_DE_CAMARA)
     df["pic_lado_max"] = df[["pic_max_ancho", "pic_max_alto"]].max(axis=1)
 
-    # Campos opcionales: la ausencia informa (D03)
+    # En los campos opcionales, la ausencia informa (D03)
     df["tiene_video"] = df["video_id"].notna()
     df["es_tienda_oficial"] = df["official_store_id"].notna()
     df["tiene_parent"] = df["parent_item_id"].notna()
@@ -213,7 +408,7 @@ def _contexto_por_item(todo):
     titulo = normalizar_texto(todo["title"])
     ctx["titulo_repetido"] = titulo.map(titulo.value_counts())
 
-    # Ráfagas: un comercio carga muchas publicaciones juntas
+    # Ráfagas, cuando un comercio carga muchas publicaciones juntas
     vendedor, creado = todo["seller_id"], todo["date_created"]
     ctx["seller_items_mismo_dia"] = (
         todo.groupby([vendedor, creado.dt.date])["id"].transform("size")
@@ -229,10 +424,10 @@ def _contexto_por_item(todo):
 
 
 def agregar_perfiles(train, test):
-    """Perfiles sobre train + test: así también los tienen los vendedores que solo están en test."""
-    # El target se descarta antes de calcular: run_verificar_leakage.py lo comprueba
+    """Perfiles sobre train + test, para que también los tengan los vendedores que solo están en test."""
+    # El target se descarta antes de calcular, y run_verificar_leakage.py lo comprueba
     todo = pd.concat(
-        [train.drop(columns=[config.TARGET], errors="ignore"), test], ignore_index=True
+        [train.drop(columns=[TARGET], errors="ignore"), test], ignore_index=True
     )
     indicadores = _indicadores(todo)
     perfil_vendedor = _perfil_vendedor(todo, indicadores)
