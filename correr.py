@@ -4,7 +4,7 @@
     python correr.py validar --nota "una prueba"   valida el modelo y lo anota en el registro
     python correr.py baseline                      valida el baseline con los mismos folds
     python correr.py errores                       guarda las predicciones que analiza el notebook 07
-    python correr.py entrenar --validacion ID      entrena el modelo final con todo train y lo guarda
+    python correr.py entrenar                      entrena el modelo final con todo train y lo guarda
     python correr.py predecir                      aplica el modelo guardado al test y escribe la submission
     python correr.py anotar ID --puntaje 0.9476    anota el puntaje de Kaggle de una submission
 
@@ -25,6 +25,8 @@ import pruebas
 ARCHIVO_MODELO = datos.OUTPUTS / "modelo" / "lightgbm.joblib"
 CARPETA_SUBMISSIONS = datos.OUTPUTS / "submissions"
 PREDICCIONES_DE_VALIDACION = datos.OUTPUTS / "errores" / "predicciones_validacion.parquet"
+# La validación que mide el modelo final. entrenar se ata a ella salvo que se indique otra
+VALIDACION_FINAL = "20261110-001656-validacion-lightgbm"
 
 
 def leakage(args):
@@ -121,7 +123,7 @@ def main():
     ordenes.add_parser("baseline").set_defaults(tarea=baseline)
     ordenes.add_parser("errores").set_defaults(tarea=errores)
     orden = ordenes.add_parser("entrenar")
-    orden.add_argument("--validacion", required=True, metavar="ID")
+    orden.add_argument("--validacion", default=VALIDACION_FINAL, metavar="ID")
     orden.set_defaults(tarea=entrenar)
     ordenes.add_parser("predecir").set_defaults(tarea=predecir)
     orden = ordenes.add_parser("anotar")
