@@ -2,14 +2,32 @@
 
 ## Replicar el modelo final
 
-Con los datos crudos en `data/raw/` y las dependencias de `requirements.txt` instaladas, se corren dos órdenes.
+El proyecto se probó con Python 3.12.10. Con versiones más viejas, las librerías de `requirements.txt` pueden no instalarse.
+
+Primero, crear el entorno e instalar las dependencias.
 
 ```
-python correr.py entrenar --validacion 20261110-001656-validacion-lightgbm
+python -m venv .venv
+.venv\Scripts\activate          (en Windows)
+source .venv/bin/activate       (en Linux o Mac)
+pip install -r requirements.txt
+```
+
+Después, bajar los datos de la competencia desde https://www.kaggle.com/competitions/ap-2026-q-2/data y dejar los dos archivos en `data/raw/`, con estos nombres.
+
+```
+data/raw/train_data.jsonlines
+data/raw/test_data.jsonlines
+```
+
+Por último, entrenar el modelo final y aplicarlo al test.
+
+```
+python correr.py entrenar
 python correr.py predecir
 ```
 
-`entrenar` entrena el modelo final con todo train y lo guarda en `outputs/modelo/lightgbm.joblib`, atado a la validación que lo respalda. `predecir` lo carga, lo aplica al test y escribe el archivo en `outputs/submissions/`, idéntico al enviado a Kaggle. La lógica de los dos está en `entrenar_final` y `predecir_test`, en la sección del modelo de `modelo.py`.
+`entrenar` entrena el modelo final con todo train y lo guarda en `outputs/modelo/lightgbm.joblib`, atado a la validación que lo respalda (`20261110-001656-validacion-lightgbm`). Si el código cambió desde esa validación, se niega a entrenar y avisa que hay que validar de nuevo. `predecir` lo carga, lo aplica al test y escribe el archivo en `outputs/submissions/`, idéntico al enviado a Kaggle. Ese archivo, que sacó 0,94790 en el leaderboard público, está en `submission_enviada.csv` para compararlo, por ejemplo con `cmp` en Linux o Mac y con `fc /b` en Windows. La lógica de los dos está en `entrenar_final` y `predecir_test`, en la sección del modelo de `modelo.py`.
 
 ## El recorrido
 
@@ -48,7 +66,7 @@ Los notebooks no entrenan el modelo final. Leen los resultados del registro, as�
 | `python correr.py validar --nota "..."` | Valida el modelo final y lo registra |
 | `python correr.py baseline` | Valida el baseline (regresión logística con seis variables) con los mismos folds |
 | `python correr.py errores` | Calcula las predicciones que analiza el notebook 07 |
-| `python correr.py entrenar --validacion ID` | Entrena el modelo final con todo train y lo guarda |
+| `python correr.py entrenar` | Entrena el modelo final con todo train y lo guarda |
 | `python correr.py predecir` | Aplica el modelo guardado al test, escribe el archivo para Kaggle y lo registra |
 | `python correr.py anotar ID --puntaje 0.95` | Anota el puntaje de Kaggle de una submission |
 
