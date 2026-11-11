@@ -10,6 +10,7 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import KFold, StratifiedKFold
@@ -467,41 +468,62 @@ def predecir_test(clasificador, train, test, y):
 # Baseline, la referencia contra la que se mide todo lo demás
 # ----------------------------------------------------------------------------
 
-# Seis variables crudas del item, sin perfiles ni target encoding. Se entrena en segundos
-BASELINE_CATEGORICAS = ["listing_type_id", "buying_mode"]
-BASELINE_NUMERICAS = ["tiene_warranty", "es_tienda_oficial", "initial_quantity", "sold_quantity"]
+# Usa todas las columnas del JSON aplanado, sin features nuestras. Solo se sacan las que no tienen una forma
+# directa de entrar en un modelo lineal, el texto libre, los identificadores y la categoría (casi 10.000 valores)
+BASELINE_SIN_USAR = ["title", "warranty", "id", "seller_id", "parent_item_id", "category_id", "seller_state"]
+# Identificadores de tienda, video y catálogo, cuyo valor no significa nada. Entran como presentes o no
+BASELINE_PRESENCIA = ["official_store_id", "video_id", "catalog_product_id"]
 
 
-def crear_baseline():
-    """Regresión logística, con las cantidades en escala logarítmica"""
-    numericas = make_pipeline(FunctionTransformer(np.log1p), StandardScaler())
+def columnas_baseline(crudo):
+    """Las columnas del JSON aplanado en números, y cuáles son categóricas y cuáles numéricas"""
+    X = crudo.drop(columns=[datos.TARGET, *BASELINE_SIN_USAR], errors="ignore").copy()
+    for col in BASELINE_PRESENCIA:
+        X[col] = X[col].notna().astype(float)
+    for col in X.columns:
+        if pd.api.types.is_datetime64_any_dtype(X[col]):
+            X[col] = (X[col] - pd.Timestamp("2015-01-01")).dt.total_seconds()  # Fechas en segundos
+    categoricas = [c for c in X.columns
+                   if not pd.api.types.is_numeric_dtype(X[c]) and not pd.api.types.is_bool_dtype(X[c])]
+    numericas = [c for c in X.columns if c not in categoricas]
+    X[categoricas] = X[categoricas].astype(str)
+    X[numericas] = X[numericas].astype(float)
+    return X, categoricas, numericas
+
+
+def _log_con_signo(x):
+    return np.sign(x) * np.log1p(np.abs(x))
+
+
+def crear_baseline(categoricas, numericas):
+    """Regresión logística. Las numéricas en escala logarítmica, porque hay precios y stocks enormes"""
+    numericas_listas = make_pipeline(FunctionTransformer(_log_con_signo),
+                                     SimpleImputer(strategy="median", add_indicator=True), StandardScaler())
     columnas = ColumnTransformer([
-        ("categoricas", OneHotEncoder(handle_unknown="ignore"), BASELINE_CATEGORICAS),
-        ("numericas", numericas, BASELINE_NUMERICAS),
+        ("categoricas", OneHotEncoder(handle_unknown="ignore"), categoricas),
+        ("numericas", numericas_listas, numericas),
     ])
-    return make_pipeline(columnas, LogisticRegression(max_iter=1000))
+    return make_pipeline(columnas, LogisticRegression(max_iter=2000))
 
 
-def validar_baseline(train, y, protocolo=PROTOCOLO_VALIDACION):
+def validar_baseline(crudo, y, protocolo=PROTOCOLO_VALIDACION):
     """Valida el baseline con los mismos folds que el modelo final y la anota en el registro"""
-    X = train[BASELINE_CATEGORICAS + BASELINE_NUMERICAS].copy()
-    X[BASELINE_CATEGORICAS] = X[BASELINE_CATEGORICAS].astype(str)
-    X[BASELINE_NUMERICAS] = X[BASELINE_NUMERICAS].astype(float)
+    X, categoricas, numericas = columnas_baseline(crudo)
     aciertos, mayoritaria = [], []
     for seed in protocolo["semillas"]:
         particion = StratifiedKFold(protocolo["n_folds"], shuffle=True, random_state=seed)
         for i_train, i_val in particion.split(X, y):
-            clasificador = crear_baseline().fit(X.iloc[i_train], y.iloc[i_train])
+            clasificador = crear_baseline(categoricas, numericas).fit(X.iloc[i_train], y.iloc[i_train])
             aciertos.append(float((clasificador.predict(X.iloc[i_val]) == y.iloc[i_val]).mean()))
             # El piso, predecir siempre la clase más frecuente del fold de entrenamiento
             clase = int(y.iloc[i_train].mean() > 0.5)
             mayoritaria.append(float((y.iloc[i_val] == clase).mean()))
     accuracy, error = resumir(aciertos)
     registrar(
-        "validacion", "baseline", {"modelo": "regresion_logistica", "max_iter": 1000},
+        "validacion", "baseline", {"modelo": "regresion_logistica", "max_iter": 2000},
         accuracy=accuracy, error_estandar=error, accuracy_por_fold=aciertos,
         accuracy_clase_mayoritaria=float(np.mean(mayoritaria)), protocolo=protocolo,
-        features=describir_features(BASELINE_CATEGORICAS + BASELINE_NUMERICAS),
-        nota="baseline, regresión logística con seis variables crudas",
+        features=describir_features(X.columns),
+        nota="baseline, regresión logística con todas las columnas del JSON aplanado",
     )
     return accuracy, error, float(np.mean(mayoritaria))

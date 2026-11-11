@@ -41,8 +41,8 @@ def validar(args):
 
 
 def baseline(args):
-    train, _ = datos.construir(*datos.cargar_train_test())
-    accuracy, error, mayoritaria = modelo.validar_baseline(train, modelo.y_binario(train))
+    crudo, _ = datos.cargar_train_test()  # Las columnas tal como salen del JSON aplanado, sin features
+    accuracy, error, mayoritaria = modelo.validar_baseline(crudo, modelo.y_binario(crudo))
     print(f"baseline {accuracy:.4f} (error estándar {error:.4f}), clase mayoritaria {mayoritaria:.4f}")
 
 
